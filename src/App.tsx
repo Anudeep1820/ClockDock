@@ -27,7 +27,10 @@ export const App: React.FC = () => {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
-  // Forced Landscape Mode (for phones with portrait orientation lock enabled)
+  // Orientation State
+  const [isLandscape, setIsLandscape] = useState(
+    typeof window !== 'undefined' ? window.innerWidth > window.innerHeight : false
+  );
   const [forcedLandscape, setForcedLandscape] = useState(false);
 
   // Controls Visibility (Auto-fade on idle so screen is pure clean)
@@ -41,6 +44,19 @@ export const App: React.FC = () => {
       setCurrentTime(new Date());
     }, 1000);
     return () => clearInterval(timer);
+  }, []);
+
+  // Listen for orientation change & window resize
+  useEffect(() => {
+    const handleResize = () => {
+      setIsLandscape(window.innerWidth > window.innerHeight);
+    };
+    window.addEventListener('resize', handleResize);
+    window.addEventListener('orientationchange', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('orientationchange', handleResize);
+    };
   }, []);
 
   // Auto-hide controls for pure clean bedside view
@@ -105,7 +121,9 @@ export const App: React.FC = () => {
         }
       } else {
         try {
-          const sentinel = await (navigator as unknown as { wakeLock: { request: (type: string) => Promise<unknown> } }).wakeLock.request('screen');
+          const sentinel = await (
+            navigator as unknown as { wakeLock: { request: (type: string) => Promise<unknown> } }
+          ).wakeLock.request('screen');
           wakeLockSentinel.current = sentinel;
           setWakeLockActive(true);
         } catch {
@@ -117,12 +135,14 @@ export const App: React.FC = () => {
     }
   };
 
-  // Fullscreen with Landscape Lock attempt
+  // Fullscreen with Landscape Lock
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
       document.documentElement.requestFullscreen?.().catch(() => {});
       try {
-        (screen.orientation as unknown as { lock: (orientation: string) => Promise<void> })?.lock?.('landscape').catch(() => {});
+        (screen.orientation as unknown as { lock: (orientation: string) => Promise<void> })
+          ?.lock?.('landscape')
+          .catch(() => {});
       } catch {
         // ignore
       }
@@ -140,6 +160,8 @@ export const App: React.FC = () => {
     setPaletteIndex((prev) => (prev + 1) % PALETTES.length);
   };
 
+  const effectiveLandscape = isLandscape || forcedLandscape;
+
   return (
     <div
       className="relative w-screen h-[100dvh] overflow-hidden bg-black select-none flex items-center justify-center m-0 p-0"
@@ -148,9 +170,9 @@ export const App: React.FC = () => {
         transition: 'filter 0.3s ease',
       }}
     >
-      {/* Rotation Wrapper: Forces landscape orientation 90deg when user toggles forcedLandscape on mobile */}
+      {/* Container: If forcedLandscape is enabled, rotate 90° for phone dock stand */}
       <div
-        className={`relative flex items-center justify-center transition-all duration-500 overflow-hidden ${
+        className={`relative flex items-center justify-center transition-all duration-300 overflow-hidden ${
           forcedLandscape
             ? 'w-[100dvh] h-[100dvw] rotate-90 origin-center absolute'
             : 'w-full h-full'
@@ -169,10 +191,10 @@ export const App: React.FC = () => {
                 ? 'bg-sky-500 text-black border-sky-400'
                 : 'bg-zinc-900/70 text-zinc-300 border-zinc-800/80 hover:text-white'
             }`}
-            title="Toggle Landscape Dock Mode (for phones with portrait orientation lock)"
+            title="Toggle Side-by-Side Landscape Mode (Rotates 90° for Bedside Dock)"
           >
             <RotateCw className="w-3.5 h-3.5" />
-            <span>{forcedLandscape ? 'Landscape Lock' : 'Landscape'}</span>
+            <span>{forcedLandscape ? 'Side-by-Side Locked' : 'Side-by-Side'}</span>
           </button>
         </div>
 
@@ -191,7 +213,7 @@ export const App: React.FC = () => {
           </button>
         </div>
 
-        {/* BOTTOM RIGHT: Subtle Palette Quick-Switcher */}
+        {/* BOTTOM RIGHT: Subtle Palette Switcher */}
         <div
           className={`fixed bottom-3 right-3 sm:bottom-5 sm:right-5 z-40 transition-all duration-700 ${
             controlsVisible ? 'opacity-100' : 'opacity-0'
@@ -207,7 +229,7 @@ export const App: React.FC = () => {
           </button>
         </div>
 
-        {/* MAIN CLOCK & MUSIC STAGE */}
+        {/* MAIN STAGE */}
         <main className="w-full h-full flex items-center justify-center overflow-hidden">
           {currentFace === 'standby-dual' && (
             <DualWidgetStandby
@@ -216,6 +238,7 @@ export const App: React.FC = () => {
               nightMode={nightMode}
               nightHex={activeTintHex}
               is24Hour={is24Hour}
+              isLandscape={effectiveLandscape}
             />
           )}
 

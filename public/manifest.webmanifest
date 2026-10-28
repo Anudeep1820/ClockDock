@@ -1,0 +1,18 @@
+{
+  "name": "ClockDock — Bedside & StandBy Clock",
+  "short_name": "ClockDock",
+  "description": "Smart Bedside Clock with customizable widgets, music reactivity, and night mode",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#000000",
+  "theme_color": "#000000",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

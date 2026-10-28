@@ -7,6 +7,7 @@ interface ClockBigBoldProps {
   is24Hour?: boolean;
   nightMode?: boolean;
   nightHex?: string;
+  bassPulse?: number; // 0..1 live audio bass reactivity
   onCyclePalette?: () => void;
 }
 
@@ -16,6 +17,7 @@ export const ClockBigBold: React.FC<ClockBigBoldProps> = ({
   is24Hour = false,
   nightMode = false,
   nightHex = '#ef4444',
+  bassPulse = 0,
   onCyclePalette,
 }) => {
   let hoursNum = time.getHours();
@@ -35,6 +37,8 @@ export const ClockBigBold: React.FC<ClockBigBoldProps> = ({
     month: 'short',
     day: 'numeric',
   });
+
+  const dynamicScale = 1.0 + (bassPulse || 0) * 0.06;
 
   return (
     <div
@@ -66,8 +70,11 @@ export const ClockBigBold: React.FC<ClockBigBoldProps> = ({
         )}
       </div>
 
-      {/* GIANT ACROSS-THE-ROOM DIGITS */}
-      <div className="flex items-center justify-center leading-none tracking-tighter">
+      {/* GIANT ACROSS-THE-ROOM DIGITS (BASS REACTIVE) */}
+      <div
+        className="flex items-center justify-center leading-none tracking-tighter transition-transform duration-75"
+        style={{ transform: `scale(${dynamicScale})` }}
+      >
         {/* Hours */}
         <span
           className="font-display-digits text-[26vw] sm:text-[24vw] md:text-[23vw] font-black transition-colors duration-500 drop-shadow-2xl"
@@ -75,26 +82,30 @@ export const ClockBigBold: React.FC<ClockBigBoldProps> = ({
             color: hoursColor,
             textShadow: nightMode
               ? `0 0 40px ${nightHex}60, 0 0 80px ${nightHex}30`
+              : bassPulse > 0.3
+              ? `0 0 35px ${palette.hours}80, 0 15px 40px rgba(0,0,0,0.6)`
               : '0 15px 40px rgba(0,0,0,0.6)',
           }}
         >
           {hoursStr}
         </span>
 
-        {/* Separator Dots (soft pulse) */}
+        {/* Separator Dots (soft pulse + audio beat) */}
         <div className="flex flex-col justify-center items-center gap-[2.5vw] sm:gap-[2.2vw] mx-[1.5vw]">
           <span
-            className="w-[3.5vw] h-[3.5vw] rounded-full animate-pulse transition-colors duration-500"
+            className="w-[3.5vw] h-[3.5vw] rounded-full transition-transform duration-75"
             style={{
               backgroundColor: nightMode ? nightHex : palette.accent,
               boxShadow: nightMode ? `0 0 20px ${nightHex}` : `0 0 15px ${palette.accent}`,
+              transform: `scale(${1.0 + (bassPulse || 0) * 0.3})`,
             }}
           />
           <span
-            className="w-[3.5vw] h-[3.5vw] rounded-full animate-pulse transition-colors duration-500"
+            className="w-[3.5vw] h-[3.5vw] rounded-full transition-transform duration-75"
             style={{
               backgroundColor: nightMode ? nightHex : palette.accent,
               boxShadow: nightMode ? `0 0 20px ${nightHex}` : `0 0 15px ${palette.accent}`,
+              transform: `scale(${1.0 + (bassPulse || 0) * 0.3})`,
             }}
           />
         </div>
@@ -106,6 +117,8 @@ export const ClockBigBold: React.FC<ClockBigBoldProps> = ({
             color: minutesColor,
             textShadow: nightMode
               ? `0 0 40px ${nightHex}60, 0 0 80px ${nightHex}30`
+              : bassPulse > 0.3
+              ? `0 0 35px ${palette.minutes}80, 0 15px 40px rgba(0,0,0,0.6)`
               : '0 15px 40px rgba(0,0,0,0.6)',
           }}
         >

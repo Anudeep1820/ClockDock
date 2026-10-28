@@ -29,6 +29,9 @@ export const App: React.FC = () => {
   const [wakeLockActive, setWakeLockActive] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
+  // Audio Reactivity (bass pulse to animate clock digits with live device music)
+  const [bassPulse, setBassPulse] = useState(0);
+
   // Dual Widget Slots
   const [leftWidget, setLeftWidget] = useState<WidgetType>('clock-digital');
   const [rightWidget, setRightWidget] = useState<WidgetType>('music');
@@ -82,7 +85,6 @@ export const App: React.FC = () => {
     window.addEventListener('touchstart', handleUserActivity);
     window.addEventListener('keydown', handleUserActivity);
 
-    // Initial timeout
     idleTimeoutRef.current = window.setTimeout(() => {
       setControlsVisible(false);
     }, 4500);
@@ -115,7 +117,7 @@ export const App: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Screen Wake Lock API (keeps display awake while docked)
+  // Screen Wake Lock API
   const toggleWakeLock = async () => {
     if ('wakeLock' in navigator) {
       if (wakeLockActive && wakeLockSentinel.current) {
@@ -200,6 +202,8 @@ export const App: React.FC = () => {
             nightMode={nightMode}
             nightHex={activeTintHex}
             is24Hour={is24Hour}
+            bassPulse={bassPulse}
+            onAudioBeat={setBassPulse}
             onOpenWidgetPicker={(slot) => setPickerSlot(slot)}
             onSwapWidgets={handleSwapWidgets}
           />
@@ -212,6 +216,7 @@ export const App: React.FC = () => {
             is24Hour={is24Hour}
             nightMode={nightMode}
             nightHex={activeTintHex}
+            bassPulse={bassPulse}
             onCyclePalette={cyclePalette}
           />
         )}

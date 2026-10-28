@@ -16,6 +16,8 @@ interface DualWidgetStandbyProps {
   nightMode?: boolean;
   nightHex?: string;
   is24Hour?: boolean;
+  bassPulse?: number;
+  onAudioBeat?: (bass: number) => void;
   onOpenWidgetPicker: (slot: 'left' | 'right') => void;
   onSwapWidgets: () => void;
 }
@@ -28,6 +30,8 @@ export const DualWidgetStandby: React.FC<DualWidgetStandbyProps> = ({
   nightMode = false,
   nightHex = '#ef4444',
   is24Hour = false,
+  bassPulse = 0,
+  onAudioBeat,
   onOpenWidgetPicker,
   onSwapWidgets,
 }) => {
@@ -68,7 +72,10 @@ export const DualWidgetStandby: React.FC<DualWidgetStandbyProps> = ({
               <Settings2 className="w-4 h-4 text-zinc-500 opacity-0 group-hover:opacity-100 transition-opacity" />
             </div>
 
-            <div className="flex items-center justify-center my-auto">
+            <div
+              className="flex items-center justify-center my-auto transition-transform duration-75"
+              style={{ transform: `scale(${1.0 + (bassPulse || 0) * 0.05})` }}
+            >
               <span
                 className="font-display-digits text-6xl sm:text-7xl md:text-8xl font-black leading-none tracking-tight"
                 style={{
@@ -116,7 +123,13 @@ export const DualWidgetStandby: React.FC<DualWidgetStandbyProps> = ({
           </div>
         );
       case 'music':
-        return <MusicWidget nightMode={nightMode} nightHex={nightHex} />;
+        return (
+          <MusicWidget
+            nightMode={nightMode}
+            nightHex={nightHex}
+            onAudioBeat={onAudioBeat}
+          />
+        );
       case 'calendar':
         return <CalendarWidget nightMode={nightMode} nightHex={nightHex} />;
       case 'weather':
@@ -126,7 +139,13 @@ export const DualWidgetStandby: React.FC<DualWidgetStandbyProps> = ({
       case 'battery':
         return <BatteryWidget nightMode={nightMode} nightHex={nightHex} />;
       default:
-        return <MusicWidget nightMode={nightMode} nightHex={nightHex} />;
+        return (
+          <MusicWidget
+            nightMode={nightMode}
+            nightHex={nightHex}
+            onAudioBeat={onAudioBeat}
+          />
+        );
     }
   };
 

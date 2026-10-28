@@ -8,7 +8,7 @@ import { ClockNeonSlice } from './components/ClockNeonSlice';
 import { ClockNightGlow } from './components/ClockNightGlow';
 import { DualWidgetStandby } from './components/DualWidgetStandby';
 import { UnifiedSettingsModal } from './components/UnifiedSettingsModal';
-import { Settings, Sparkles } from 'lucide-react';
+import { Settings, Sparkles, RotateCw } from 'lucide-react';
 
 export const App: React.FC = () => {
   // Current Time State
@@ -26,6 +26,9 @@ export const App: React.FC = () => {
   const [wakeLockActive, setWakeLockActive] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
+  // Forced Landscape Mode (for phones with portrait orientation lock enabled)
+  const [forcedLandscape, setForcedLandscape] = useState(false);
 
   // Controls Visibility (Auto-fade on idle so screen is pure clean)
   const [controlsVisible, setControlsVisible] = useState(true);
@@ -76,6 +79,7 @@ export const App: React.FC = () => {
       if (e.key === 'n' || e.key === 'N') setNightMode((prev) => !prev);
       else if (e.key === 'f' || e.key === 'F') toggleFullscreen();
       else if (e.key === 's' || e.key === 'S') setIsSettingsOpen((prev) => !prev);
+      else if (e.key === 'r' || e.key === 'R') setForcedLandscape((prev) => !prev);
       else if (e.key === '1') setCurrentFace('standby-dual');
       else if (e.key === '2') setCurrentFace('big-bold');
       else if (e.key === '3') setCurrentFace('retro-flip');
@@ -87,7 +91,7 @@ export const App: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Screen Wake Lock API (keeps screen awake while on dock)
+  // Screen Wake Lock API
   const toggleWakeLock = async () => {
     if ('wakeLock' in navigator) {
       if (wakeLockActive && wakeLockSentinel.current) {
@@ -113,10 +117,15 @@ export const App: React.FC = () => {
     }
   };
 
-  // Fullscreen
+  // Fullscreen with Landscape Lock attempt
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
       document.documentElement.requestFullscreen?.().catch(() => {});
+      try {
+        (screen.orientation as unknown as { lock: (orientation: string) => Promise<void> })?.lock?.('landscape').catch(() => {});
+      } catch {
+        // ignore
+      }
       setIsFullscreen(true);
     } else {
       document.exitFullscreen?.().catch(() => {});
@@ -133,101 +142,130 @@ export const App: React.FC = () => {
 
   return (
     <div
-      className="relative w-screen h-[100dvh] overflow-hidden bg-black select-none flex flex-col justify-center items-center m-0 p-0"
+      className="relative w-screen h-[100dvh] overflow-hidden bg-black select-none flex items-center justify-center m-0 p-0"
       style={{
         filter: `brightness(${dimLevel})`,
         transition: 'filter 0.3s ease',
       }}
     >
-      {/* SINGLE SUBTLE CORNER SETTINGS BUTTON (Fades out when inactive for 100% clean screen) */}
+      {/* Rotation Wrapper: Forces landscape orientation 90deg when user toggles forcedLandscape on mobile */}
       <div
-        className={`fixed top-3 right-3 sm:top-5 sm:right-5 z-40 transition-all duration-700 ${
-          controlsVisible ? 'opacity-100' : 'opacity-20 hover:opacity-100'
+        className={`relative flex items-center justify-center transition-all duration-500 overflow-hidden ${
+          forcedLandscape
+            ? 'w-[100dvh] h-[100dvw] rotate-90 origin-center absolute'
+            : 'w-full h-full'
         }`}
       >
-        <button
-          onClick={() => setIsSettingsOpen(true)}
-          className="p-2 sm:p-2.5 rounded-full bg-zinc-900/70 border border-zinc-800/80 backdrop-blur-xl text-zinc-300 hover:text-white hover:scale-105 active:scale-95 transition-all shadow-xl"
-          title="Open Settings"
+        {/* TOP LEFT: Quick Rotate to Landscape Dock Button */}
+        <div
+          className={`fixed top-3 left-3 sm:top-5 sm:left-5 z-40 transition-all duration-700 ${
+            controlsVisible ? 'opacity-100' : 'opacity-20 hover:opacity-100'
+          }`}
         >
-          <Settings className="w-5 h-5" />
-        </button>
-      </div>
+          <button
+            onClick={() => setForcedLandscape((prev) => !prev)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border backdrop-blur-xl text-xs font-bold transition-all shadow-xl ${
+              forcedLandscape
+                ? 'bg-sky-500 text-black border-sky-400'
+                : 'bg-zinc-900/70 text-zinc-300 border-zinc-800/80 hover:text-white'
+            }`}
+            title="Toggle Landscape Dock Mode (for phones with portrait orientation lock)"
+          >
+            <RotateCw className="w-3.5 h-3.5" />
+            <span>{forcedLandscape ? 'Landscape Lock' : 'Landscape'}</span>
+          </button>
+        </div>
 
-      {/* Subtle Palette Quick-Switcher (Bottom right corner hint) */}
-      <div
-        className={`fixed bottom-3 right-3 sm:bottom-5 sm:right-5 z-40 transition-all duration-700 ${
-          controlsVisible ? 'opacity-100' : 'opacity-0'
-        }`}
-      >
-        <button
-          onClick={cyclePalette}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-zinc-900/60 border border-zinc-800/80 backdrop-blur-xl text-xs font-semibold text-zinc-400 hover:text-white transition-all"
-          title="Switch Color Theme"
+        {/* TOP RIGHT: Single Subtle Settings Gear */}
+        <div
+          className={`fixed top-3 right-3 sm:top-5 sm:right-5 z-40 transition-all duration-700 ${
+            controlsVisible ? 'opacity-100' : 'opacity-20 hover:opacity-100'
+          }`}
         >
-          <Sparkles className="w-3.5 h-3.5 text-pink-400" />
-          <span className="hidden sm:inline">Theme</span>
-        </button>
+          <button
+            onClick={() => setIsSettingsOpen(true)}
+            className="p-2 sm:p-2.5 rounded-full bg-zinc-900/70 border border-zinc-800/80 backdrop-blur-xl text-zinc-300 hover:text-white hover:scale-105 active:scale-95 transition-all shadow-xl"
+            title="Open Settings"
+          >
+            <Settings className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* BOTTOM RIGHT: Subtle Palette Quick-Switcher */}
+        <div
+          className={`fixed bottom-3 right-3 sm:bottom-5 sm:right-5 z-40 transition-all duration-700 ${
+            controlsVisible ? 'opacity-100' : 'opacity-0'
+          }`}
+        >
+          <button
+            onClick={cyclePalette}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-zinc-900/60 border border-zinc-800/80 backdrop-blur-xl text-xs font-semibold text-zinc-400 hover:text-white transition-all"
+            title="Switch Color Theme"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-pink-400" />
+            <span className="hidden sm:inline">Theme</span>
+          </button>
+        </div>
+
+        {/* MAIN CLOCK & MUSIC STAGE */}
+        <main className="w-full h-full flex items-center justify-center overflow-hidden">
+          {currentFace === 'standby-dual' && (
+            <DualWidgetStandby
+              time={currentTime}
+              palette={currentPalette}
+              nightMode={nightMode}
+              nightHex={activeTintHex}
+              is24Hour={is24Hour}
+            />
+          )}
+
+          {currentFace === 'big-bold' && (
+            <ClockBigBold
+              time={currentTime}
+              palette={currentPalette}
+              is24Hour={is24Hour}
+              nightMode={nightMode}
+              nightHex={activeTintHex}
+              onCyclePalette={cyclePalette}
+            />
+          )}
+
+          {currentFace === 'retro-flip' && (
+            <ClockRetroFlip
+              time={currentTime}
+              nightMode={nightMode}
+              nightHex={activeTintHex}
+              is24Hour={is24Hour}
+            />
+          )}
+
+          {currentFace === 'minimal-analog' && (
+            <ClockAnalog
+              time={currentTime}
+              nightMode={nightMode}
+              nightHex={activeTintHex}
+            />
+          )}
+
+          {currentFace === 'neon-slice' && (
+            <ClockNeonSlice
+              time={currentTime}
+              nightMode={nightMode}
+              nightHex={activeTintHex}
+              is24Hour={is24Hour}
+            />
+          )}
+
+          {currentFace === 'night-glow' && (
+            <ClockNightGlow
+              time={currentTime}
+              nightMode={nightMode}
+              nightHex={activeTintHex}
+              is24Hour={is24Hour}
+            />
+          )}
+        </main>
       </div>
-
-      {/* MAIN CLOCK & MUSIC STAGE (Auto-scales to any phone screen in Portrait or Landscape) */}
-      <main className="w-full h-full flex items-center justify-center overflow-hidden">
-        {currentFace === 'standby-dual' && (
-          <DualWidgetStandby
-            time={currentTime}
-            palette={currentPalette}
-            nightMode={nightMode}
-            nightHex={activeTintHex}
-            is24Hour={is24Hour}
-          />
-        )}
-
-        {currentFace === 'big-bold' && (
-          <ClockBigBold
-            time={currentTime}
-            palette={currentPalette}
-            is24Hour={is24Hour}
-            nightMode={nightMode}
-            nightHex={activeTintHex}
-            onCyclePalette={cyclePalette}
-          />
-        )}
-
-        {currentFace === 'retro-flip' && (
-          <ClockRetroFlip
-            time={currentTime}
-            nightMode={nightMode}
-            nightHex={activeTintHex}
-            is24Hour={is24Hour}
-          />
-        )}
-
-        {currentFace === 'minimal-analog' && (
-          <ClockAnalog
-            time={currentTime}
-            nightMode={nightMode}
-            nightHex={activeTintHex}
-          />
-        )}
-
-        {currentFace === 'neon-slice' && (
-          <ClockNeonSlice
-            time={currentTime}
-            nightMode={nightMode}
-            nightHex={activeTintHex}
-            is24Hour={is24Hour}
-          />
-        )}
-
-        {currentFace === 'night-glow' && (
-          <ClockNightGlow
-            time={currentTime}
-            nightMode={nightMode}
-            nightHex={activeTintHex}
-            is24Hour={is24Hour}
-          />
-        )}
-      </main>
 
       {/* SINGLE UNIFIED SETTINGS MODAL */}
       <UnifiedSettingsModal
@@ -247,6 +285,8 @@ export const App: React.FC = () => {
         onToggleFullscreen={toggleFullscreen}
         wakeLockActive={wakeLockActive}
         onToggleWakeLock={toggleWakeLock}
+        forcedLandscape={forcedLandscape}
+        onToggleForcedLandscape={() => setForcedLandscape((prev) => !prev)}
       />
     </div>
   );

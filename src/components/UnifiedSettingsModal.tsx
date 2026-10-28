@@ -9,6 +9,7 @@ import {
   Minimize2,
   Zap,
   Check,
+  RotateCw,
 } from 'lucide-react';
 
 interface UnifiedSettingsModalProps {
@@ -28,6 +29,8 @@ interface UnifiedSettingsModalProps {
   onToggleFullscreen: () => void;
   wakeLockActive: boolean;
   onToggleWakeLock: () => void;
+  forcedLandscape: boolean;
+  onToggleForcedLandscape: () => void;
 }
 
 export const UnifiedSettingsModal: React.FC<UnifiedSettingsModalProps> = ({
@@ -47,12 +50,14 @@ export const UnifiedSettingsModal: React.FC<UnifiedSettingsModalProps> = ({
   onToggleFullscreen,
   wakeLockActive,
   onToggleWakeLock,
+  forcedLandscape,
+  onToggleForcedLandscape,
 }) => {
   if (!isOpen) return null;
 
   const clockStyles: { id: ClockFace; name: string; desc: string }[] = [
     { id: 'standby-dual', name: 'StandBy Duo', desc: 'Clock + Music side by side' },
-    { id: 'big-bold', name: 'Big Bold', desc: 'Giant digits readable from across room' },
+    { id: 'big-bold', name: 'Big Bold', desc: 'Giant digits readable across room' },
     { id: 'retro-flip', name: 'Retro Flip', desc: 'Mechanical split flip board' },
     { id: 'minimal-analog', name: 'Analog Dial', desc: 'Swiss Bauhaus sweeping dial' },
     { id: 'neon-slice', name: 'Neon Slice', desc: 'Cyberpunk angular slice' },
@@ -113,7 +118,30 @@ export const UnifiedSettingsModal: React.FC<UnifiedSettingsModalProps> = ({
           </div>
         </div>
 
-        {/* 2. Night Mode & 7 Circadian Tints */}
+        {/* 2. Orientation & Landscape Dock Mode */}
+        <div className="p-4 rounded-2xl bg-zinc-900/60 border border-zinc-800/80 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-xl bg-zinc-800 border border-zinc-700">
+              <RotateCw className="w-4 h-4 text-sky-400" />
+            </div>
+            <div>
+              <span className="text-sm font-bold text-white">Landscape Dock Lock</span>
+              <p className="text-[11px] text-zinc-400">Force horizontal dock even if phone rotation is locked</p>
+            </div>
+          </div>
+          <button
+            onClick={onToggleForcedLandscape}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+              forcedLandscape
+                ? 'bg-sky-500 text-black shadow-lg'
+                : 'bg-zinc-800 text-zinc-300 hover:text-white'
+            }`}
+          >
+            {forcedLandscape ? 'Locked 90°' : 'Auto'}
+          </button>
+        </div>
+
+        {/* 3. Night Mode & 7 Circadian Tints */}
         <div className="flex flex-col gap-3 p-4 rounded-2xl bg-zinc-900/60 border border-zinc-800/80">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -164,7 +192,7 @@ export const UnifiedSettingsModal: React.FC<UnifiedSettingsModalProps> = ({
           </div>
         </div>
 
-        {/* 3. Screen Dimmer Brightness */}
+        {/* 4. Screen Dimmer Brightness */}
         <div className="p-4 rounded-2xl bg-zinc-900/60 border border-zinc-800/80 flex flex-col gap-2">
           <div className="flex items-center justify-between text-xs">
             <div className="flex items-center gap-2 text-zinc-300 font-bold">
@@ -184,7 +212,7 @@ export const UnifiedSettingsModal: React.FC<UnifiedSettingsModalProps> = ({
           />
         </div>
 
-        {/* 4. Toggles: 24H, Always-On, Fullscreen */}
+        {/* 5. Toggles: 24H, Always-On, Fullscreen */}
         <div className="grid grid-cols-3 gap-2">
           <button
             onClick={onToggle24Hour}

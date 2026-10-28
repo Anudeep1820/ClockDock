@@ -1,6 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { ClockSettings, ClockFaceId } from './types';
-import { loadSettings, saveSettings, resetSettings } from './utils/storage';
+import {
+  loadSettings,
+  saveSettings,
+  resetSettings,
+  isNightScheduleActive,
+} from './utils/storage';
 import {
   getColor,
   getTypography,
@@ -18,7 +23,7 @@ import { ModernWorldClock } from './components/faces/ModernWorldClock';
 import { MatrixMinimal } from './components/faces/MatrixMinimal';
 import { BackgroundStudio } from './components/BackgroundStudio';
 import { SettingsSheet } from './components/SettingsSheet';
-import { Settings, Maximize2, Minimize2, Zap, RotateCw } from 'lucide-react';
+import { Settings, Maximize2, Minimize2, Zap, RotateCw, Moon } from 'lucide-react';
 
 const ALL_FACES: ClockFaceId[] = [
   'standby-digital',
@@ -78,10 +83,22 @@ export const App: React.FC = () => {
 
     animId = requestAnimationFrame(tick);
 
-    // Refresh immediately when returning from background
-    const handleVisibilityChange = () => {
+    // Refresh immediately and re-request WakeLock when returning from background
+    const handleVisibilityChange = async () => {
       if (document.visibilityState === 'visible') {
         setCurrentTime(new Date());
+
+        // Reacquire screen wake lock if it was active
+        if (wakeLockActive && 'wakeLock' in navigator) {
+          try {
+            const sentinel = await (
+              navigator as unknown as { wakeLock: { request: (type: string) => Promise<unknown> } }
+            ).wakeLock.request('screen');
+            wakeLockSentinel.current = sentinel;
+          } catch {
+            // ignore
+          }
+        }
       }
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -90,7 +107,7 @@ export const App: React.FC = () => {
       cancelAnimationFrame(animId);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, []);
+  }, [wakeLockActive]);
 
   // Idle Activity Detector (fades controls after 3.5s)
   const reportActivity = useCallback(() => {
@@ -119,6 +136,39 @@ export const App: React.FC = () => {
       if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
     };
   }, [reportActivity]);
+
+  // Intelligent Night Mode Evaluation
+  const isNightSchedule = isNightScheduleActive(
+    currentTime,
+    settings.nightModeStart,
+    settings.nightModeEnd
+  );
+
+  const isNightModeActive =
+    settings.nightModeManual !== null
+      ? settings.nightModeManual
+      : settings.nightModeEnabled && isNightSchedule;
+
+  // Toggle night mode manually
+  const toggleNightModeManual = useCallback(() => {
+    if (isNightModeActive) {
+      handleUpdateSettings({ nightModeManual: false });
+    } else {
+      handleUpdateSettings({ nightModeManual: true });
+    }
+  }, [isNightModeActive, handleUpdateSettings]);
+
+  // Effective appearance parameters based on Night Mode state
+  const effectiveBgTheme = isNightModeActive ? 'oled-black' : settings.bgTheme;
+  const effectiveColor = isNightModeActive
+    ? getColor(settings.nightModeTint)
+    : getColor(settings.clockColor);
+  const effectiveDimmer = isNightModeActive ? settings.nightModeDimmer : settings.dimmer;
+  const effectiveShowSeconds =
+    isNightModeActive && settings.nightModeSuppressSeconds ? false : settings.showSeconds;
+  const effectiveShowDate =
+    isNightModeActive && settings.nightModeMinimalDate ? false : settings.showDate;
+  const effectiveAnimation = isNightModeActive ? false : settings.bgAnimationEnabled;
 
   // Touch Swipe to switch faces (iOS StandBy behavior)
   const handleTouchStart = (e: React.TouchEvent) => {
@@ -203,17 +253,20 @@ export const App: React.FC = () => {
     handleUpdateSettings({ clockColor: CLOCK_COLORS[nextIndex].id });
   }, [settings.clockColor, handleUpdateSettings]);
 
-  // Keyboard Shortcuts (1-9 for face direct jumps, Arrows to cycle, S for settings, F for fullscreen)
+  // Keyboard Shortcuts (1-9 for face direct jumps, Arrows to cycle, S for settings, F for fullscreen, N for night mode)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) return;
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement ||
+        e.target instanceof HTMLSelectElement
+      )
+        return;
 
       if (e.key === 's' || e.key === 'S') setIsSettingsOpen((p) => !p);
       else if (e.key === 'f' || e.key === 'F') toggleFullscreen();
       else if (e.key === 'n' || e.key === 'N') {
-        handleUpdateSettings({
-          clockColor: settings.clockColor === 'crimson' ? 'warm-white' : 'crimson',
-        });
+        toggleNightModeManual();
       } else if (e.key >= '1' && e.key <= '9') {
         const index = parseInt(e.key, 10) - 1;
         if (index < ALL_FACES.length) {
@@ -232,31 +285,34 @@ export const App: React.FC = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [settings.clockColor, settings.face, handleUpdateSettings, cycleColor]);
+  }, [settings.face, handleUpdateSettings, cycleColor, toggleNightModeManual]);
 
-  const activeColor = getColor(settings.clockColor);
   const activeTypography = getTypography(settings.fontStyle);
 
   return (
     <div
       className="relative w-screen h-[100dvh] overflow-hidden select-none flex items-center justify-center bg-black"
       style={{
-        filter: `brightness(${settings.dimmer})`,
-        transition: 'filter 0.3s ease',
+        filter: `brightness(${effectiveDimmer})`,
+        transition: 'filter 0.5s ease',
       }}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
     >
       {/* 1. ANIMATED BACKGROUND STUDIO LAYER */}
       <BackgroundStudio
-        themeId={settings.bgTheme}
-        isAnimated={settings.bgAnimationEnabled}
+        themeId={effectiveBgTheme}
+        isAnimated={effectiveAnimation}
         speed={settings.bgSpeed}
         intensity={settings.bgIntensity}
         particleDensity={settings.particleDensity}
         blur={settings.bgBlur}
         customColor={settings.customBgColor}
-        clockColor={activeColor}
+        customColorSecondary={settings.customBgColorSecondary}
+        clockColor={effectiveColor}
+        glowStrength={settings.glowStrength}
+        bgBrightness={settings.bgBrightness}
+        reduceMotion={settings.reduceMotion}
       />
 
       {/* 2. ROTATION WRAPPER: Forces landscape orientation 90deg when user toggles forcedLandscape on mobile */}
@@ -273,6 +329,23 @@ export const App: React.FC = () => {
             controlsVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'
           }`}
         >
+          {/* Night Mode Quick Toggle */}
+          <button
+            onClick={toggleNightModeManual}
+            className={`p-2.5 rounded-full border backdrop-blur-xl shadow-lg transition-all ${
+              isNightModeActive
+                ? 'border-rose-400 bg-rose-500/20 text-rose-300 shadow-[0_0_15px_rgba(244,63,94,0.4)]'
+                : 'border-white/10 bg-black/40 text-zinc-400 hover:text-white'
+            }`}
+            title={
+              isNightModeActive
+                ? 'Bedside Night Mode Active (Tap to Exit)'
+                : 'Enable Bedside Night Mode (N)'
+            }
+          >
+            <Moon className="w-4 h-4" />
+          </button>
+
           {/* Always-On Screen WakeLock */}
           <button
             onClick={toggleWakeLock}
@@ -346,11 +419,13 @@ export const App: React.FC = () => {
           {settings.face === 'standby-digital' && (
             <StandByDigital
               time={currentTime}
-              color={activeColor}
+              color={effectiveColor}
               typography={activeTypography}
               is24Hour={settings.is24Hour}
-              showDate={settings.showDate}
-              showSeconds={settings.showSeconds}
+              showDate={effectiveShowDate}
+              showSeconds={effectiveShowSeconds}
+              numeralSize={settings.numeralSize}
+              glowStrength={settings.glowStrength}
               onCycleColor={cycleColor}
             />
           )}
@@ -358,10 +433,11 @@ export const App: React.FC = () => {
           {settings.face === 'minimal-analog' && (
             <MinimalAnalog
               time={currentTime}
-              color={activeColor}
+              color={effectiveColor}
               typography={activeTypography}
-              showDate={settings.showDate}
-              showSeconds={settings.showSeconds}
+              showDate={effectiveShowDate}
+              showSeconds={effectiveShowSeconds}
+              glowStrength={settings.glowStrength}
               onCycleColor={cycleColor}
             />
           )}
@@ -369,11 +445,11 @@ export const App: React.FC = () => {
           {settings.face === 'retro-flip' && (
             <RetroFlip
               time={currentTime}
-              color={activeColor}
+              color={effectiveColor}
               typography={activeTypography}
               is24Hour={settings.is24Hour}
-              showDate={settings.showDate}
-              showSeconds={settings.showSeconds}
+              showDate={effectiveShowDate}
+              showSeconds={effectiveShowSeconds}
               onCycleColor={cycleColor}
             />
           )}
@@ -381,11 +457,13 @@ export const App: React.FC = () => {
           {settings.face === 'ambient-glow' && (
             <AmbientGlow
               time={currentTime}
-              color={activeColor}
+              color={effectiveColor}
               typography={activeTypography}
               is24Hour={settings.is24Hour}
-              showDate={settings.showDate}
-              showSeconds={settings.showSeconds}
+              showDate={effectiveShowDate}
+              showSeconds={effectiveShowSeconds}
+              numeralSize={settings.numeralSize}
+              glowStrength={settings.glowStrength}
               onCycleColor={cycleColor}
             />
           )}
@@ -393,11 +471,13 @@ export const App: React.FC = () => {
           {settings.face === 'neon-cyber' && (
             <NeonCyber
               time={currentTime}
-              color={activeColor}
+              color={effectiveColor}
               typography={activeTypography}
               is24Hour={settings.is24Hour}
-              showDate={settings.showDate}
-              showSeconds={settings.showSeconds}
+              showDate={effectiveShowDate}
+              showSeconds={effectiveShowSeconds}
+              numeralSize={settings.numeralSize}
+              glowStrength={settings.glowStrength}
               onCycleColor={cycleColor}
             />
           )}
@@ -405,11 +485,11 @@ export const App: React.FC = () => {
           {settings.face === 'premium-editorial' && (
             <PremiumEditorial
               time={currentTime}
-              color={activeColor}
+              color={effectiveColor}
               typography={activeTypography}
               is24Hour={settings.is24Hour}
-              showDate={settings.showDate}
-              showSeconds={settings.showSeconds}
+              showDate={effectiveShowDate}
+              showSeconds={effectiveShowSeconds}
               onCycleColor={cycleColor}
             />
           )}
@@ -417,11 +497,13 @@ export const App: React.FC = () => {
           {settings.face === 'aurora-digital' && (
             <AuroraDigital
               time={currentTime}
-              color={activeColor}
+              color={effectiveColor}
               typography={activeTypography}
               is24Hour={settings.is24Hour}
-              showDate={settings.showDate}
-              showSeconds={settings.showSeconds}
+              showDate={effectiveShowDate}
+              showSeconds={effectiveShowSeconds}
+              numeralSize={settings.numeralSize}
+              glowStrength={settings.glowStrength}
               onCycleColor={cycleColor}
             />
           )}
@@ -429,11 +511,11 @@ export const App: React.FC = () => {
           {settings.face === 'modern-world' && (
             <ModernWorldClock
               time={currentTime}
-              color={activeColor}
+              color={effectiveColor}
               typography={activeTypography}
               is24Hour={settings.is24Hour}
-              showDate={settings.showDate}
-              showSeconds={settings.showSeconds}
+              showDate={effectiveShowDate}
+              showSeconds={effectiveShowSeconds}
               worldCity={settings.worldClockCity}
               worldTimezone={settings.worldClockTimezone}
               showSecondary={settings.showSecondaryClock}
@@ -444,11 +526,11 @@ export const App: React.FC = () => {
           {settings.face === 'matrix-minimal' && (
             <MatrixMinimal
               time={currentTime}
-              color={activeColor}
+              color={effectiveColor}
               typography={activeTypography}
               is24Hour={settings.is24Hour}
-              showDate={settings.showDate}
-              showSeconds={settings.showSeconds}
+              showDate={effectiveShowDate}
+              showSeconds={effectiveShowSeconds}
               onCycleColor={cycleColor}
             />
           )}
@@ -462,6 +544,8 @@ export const App: React.FC = () => {
         settings={settings}
         onUpdate={handleUpdateSettings}
         onReset={handleResetSettings}
+        isNightModeActive={isNightModeActive}
+        onToggleNightManual={toggleNightModeManual}
       />
     </div>
   );

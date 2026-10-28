@@ -4,15 +4,15 @@ import App from './App';
 import './index.css';
 
 // Register Service Worker for offline PWA support
-if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
+if ('serviceWorker' in navigator && (import.meta.env.PROD || window.location.protocol === 'https:' || window.location.hostname === 'localhost')) {
   window.addEventListener('load', () => {
     navigator.serviceWorker
       .register('/sw.js')
       .then((registration) => {
-        console.log('ClockDock ServiceWorker registered successfully:', registration.scope);
+        console.log('ClockDock ServiceWorker active:', registration.scope);
       })
       .catch((error) => {
-        console.warn('ClockDock ServiceWorker registration failed:', error);
+        console.warn('ClockDock ServiceWorker registration error:', error);
       });
   });
 }

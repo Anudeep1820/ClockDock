@@ -1,5 +1,5 @@
 import React from 'react';
-import { ClockColor, TypographyStyle } from '../../types';
+import { ClockColor, TypographyStyle, NumeralSize, GlowStrength } from '../../types';
 
 interface StandByDigitalProps {
   time: Date;
@@ -8,6 +8,8 @@ interface StandByDigitalProps {
   is24Hour: boolean;
   showDate: boolean;
   showSeconds: boolean;
+  numeralSize?: NumeralSize;
+  glowStrength?: GlowStrength;
   onCycleColor?: () => void;
 }
 
@@ -18,6 +20,8 @@ export const StandByDigital: React.FC<StandByDigitalProps> = ({
   is24Hour,
   showDate,
   showSeconds,
+  numeralSize = 'large',
+  glowStrength = 'subtle',
   onCycleColor,
 }) => {
   let hoursNum = time.getHours();
@@ -35,6 +39,20 @@ export const StandByDigital: React.FC<StandByDigitalProps> = ({
     day: 'numeric',
   }).toUpperCase();
 
+  const fontSizeClass =
+    numeralSize === 'standard'
+      ? 'text-[22vw] sm:text-[19vw] md:text-[17vw]'
+      : numeralSize === 'xlarge'
+      ? 'text-[32vw] sm:text-[28vw] md:text-[26vw]'
+      : 'text-[27vw] sm:text-[24vw] md:text-[22vw]';
+
+  const glowShadow =
+    glowStrength === 'off'
+      ? 'none'
+      : glowStrength === 'vibrant'
+      ? `0 0 65px ${color.glow}, 0 20px 40px rgba(0,0,0,0.9)`
+      : `0 0 40px ${color.glow}, 0 15px 30px rgba(0,0,0,0.8)`;
+
   return (
     <div
       onClick={onCycleColor}
@@ -42,7 +60,7 @@ export const StandByDigital: React.FC<StandByDigitalProps> = ({
     >
       {/* Date Header Badge */}
       {showDate && (
-        <div className="absolute top-6 sm:top-10 md:top-14 flex items-center gap-2.5 transition-all">
+        <div className="absolute top-5 sm:top-8 md:top-12 flex items-center gap-2.5 transition-all">
           <div
             className="flex items-center gap-2 px-3.5 py-1.5 rounded-full border backdrop-blur-md shadow-lg"
             style={{
@@ -77,10 +95,10 @@ export const StandByDigital: React.FC<StandByDigitalProps> = ({
       <div className="flex items-center justify-center leading-none tracking-tighter">
         {/* Hours (Primary Accent) */}
         <span
-          className="font-black text-[28vw] sm:text-[25vw] md:text-[23vw] drop-shadow-2xl transition-colors duration-500"
+          className={`font-black ${fontSizeClass} drop-shadow-2xl transition-all duration-500`}
           style={{
             color: color.primary,
-            textShadow: `0 0 45px ${color.glow}, 0 20px 40px rgba(0,0,0,0.8)`,
+            textShadow: glowShadow,
           }}
         >
           {hoursStr}
@@ -89,54 +107,44 @@ export const StandByDigital: React.FC<StandByDigitalProps> = ({
         {/* Separator Breathing Dots */}
         <div className="flex flex-col justify-center items-center gap-[2.8vw] sm:gap-[2.2vw] mx-[1.6vw] sm:mx-[2vw]">
           <span
-            className="w-[3.2vw] h-[3.2vw] sm:w-[2.4vw] sm:h-[2.4vw] rounded-full animate-pulse transition-all duration-500"
+            className="w-[2.8vw] h-[2.8vw] sm:w-[2.2vw] sm:h-[2.2vw] rounded-full animate-pulse transition-all duration-500"
             style={{
               backgroundColor: color.primary,
-              boxShadow: `0 0 20px ${color.primary}`,
+              boxShadow: glowStrength !== 'off' ? `0 0 20px ${color.primary}` : 'none',
             }}
           />
           <span
-            className="w-[3.2vw] h-[3.2vw] sm:w-[2.4vw] sm:h-[2.4vw] rounded-full animate-pulse transition-all duration-500"
+            className="w-[2.8vw] h-[2.8vw] sm:w-[2.2vw] sm:h-[2.2vw] rounded-full animate-pulse transition-all duration-500"
             style={{
               backgroundColor: color.primary,
-              boxShadow: `0 0 20px ${color.primary}`,
+              boxShadow: glowStrength !== 'off' ? `0 0 20px ${color.primary}` : 'none',
             }}
           />
         </div>
 
-        {/* Minutes (Secondary Softened Tone) */}
+        {/* Minutes (Secondary Subtle Accent) */}
         <span
-          className="font-black text-[28vw] sm:text-[25vw] md:text-[23vw] drop-shadow-2xl transition-colors duration-500"
+          className={`font-black ${fontSizeClass} drop-shadow-2xl transition-all duration-500`}
           style={{
             color: color.secondary,
-            textShadow: `0 0 45px ${color.glow}, 0 20px 40px rgba(0,0,0,0.8)`,
+            textShadow: glowShadow,
           }}
         >
           {minutesStr}
         </span>
-      </div>
 
-      {/* Optional Seconds Display */}
-      {showSeconds && (
-        <div className="absolute bottom-6 sm:bottom-10 md:bottom-14 flex items-center gap-3">
-          <div className="w-32 sm:w-52 h-1 rounded-full bg-white/10 overflow-hidden">
-            <div
-              className="h-full rounded-full transition-all duration-300"
-              style={{
-                width: `${(time.getSeconds() / 59) * 100}%`,
-                backgroundColor: color.primary,
-                boxShadow: `0 0 10px ${color.primary}`,
-              }}
-            />
+        {/* Optional Clean Seconds Indicator */}
+        {showSeconds && (
+          <div className="flex flex-col justify-end self-end mb-[2.5vw] ml-[1.5vw]">
+            <span
+              className="font-mono text-[5vw] sm:text-[4vw] md:text-[3.5vw] font-bold tracking-tight opacity-75"
+              style={{ color: color.primary }}
+            >
+              {secondsStr}
+            </span>
           </div>
-          <span
-            className="font-mono text-xs sm:text-sm font-bold tracking-wider"
-            style={{ color: color.primary }}
-          >
-            :{secondsStr}
-          </span>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 };

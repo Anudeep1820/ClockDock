@@ -40,6 +40,8 @@ export type TypographyStyleId =
 export type AnimationSpeed = 'slow' | 'normal' | 'fast';
 export type EffectIntensity = 'low' | 'medium' | 'high';
 export type ParticleDensity = 'low' | 'medium' | 'high';
+export type NumeralSize = 'standard' | 'large' | 'xlarge';
+export type GlowStrength = 'off' | 'subtle' | 'vibrant';
 
 export interface BackgroundTheme {
   id: BackgroundThemeId;
@@ -72,6 +74,22 @@ export interface WorldClockCity {
   country: string;
 }
 
+export interface UserPreset {
+  id: string;
+  name: string;
+  isBuiltIn?: boolean;
+  face: ClockFaceId;
+  bgTheme: BackgroundThemeId;
+  clockColor: ClockColorId;
+  fontStyle: TypographyStyleId;
+  dimmer: number;
+  bgSpeed?: AnimationSpeed;
+  bgIntensity?: EffectIntensity;
+  particleDensity?: ParticleDensity;
+  glowStrength?: GlowStrength;
+  numeralSize?: NumeralSize;
+}
+
 export interface ClockSettings {
   // Clock Face
   face: ClockFaceId;
@@ -82,6 +100,8 @@ export interface ClockSettings {
   showSeconds: boolean;
   dimmer: number; // 0.15 to 1.0
   forcedLandscape: boolean;
+  numeralSize: NumeralSize;
+  glowStrength: GlowStrength;
 
   // Background Studio
   bgTheme: BackgroundThemeId;
@@ -91,9 +111,22 @@ export interface ClockSettings {
   particleDensity: ParticleDensity;
   bgBlur: boolean;
   customBgColor: string;
+  customBgColorSecondary: string;
+  bgBrightness: number;
+  reduceMotion: boolean;
 
   // World Clock settings
   worldClockCity: string;
   worldClockTimezone: string;
   showSecondaryClock: boolean;
+
+  // Intelligent Night Mode
+  nightModeEnabled: boolean;
+  nightModeStart: string; // "22:00"
+  nightModeEnd: string;   // "07:00"
+  nightModeTint: ClockColorId;
+  nightModeDimmer: number;
+  nightModeSuppressSeconds: boolean;
+  nightModeMinimalDate: boolean;
+  nightModeManual: boolean | null; // null = follow schedule, true = forced night, false = forced day
 }

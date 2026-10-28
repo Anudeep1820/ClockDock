@@ -1,5 +1,5 @@
 import React from 'react';
-import { ClockColor, TypographyStyle } from '../../types';
+import { ClockColor, TypographyStyle, NumeralSize, GlowStrength } from '../../types';
 
 interface AmbientGlowProps {
   time: Date;
@@ -8,6 +8,8 @@ interface AmbientGlowProps {
   is24Hour: boolean;
   showDate: boolean;
   showSeconds: boolean;
+  numeralSize?: NumeralSize;
+  glowStrength?: GlowStrength;
   onCycleColor?: () => void;
 }
 
@@ -18,6 +20,8 @@ export const AmbientGlow: React.FC<AmbientGlowProps> = ({
   is24Hour,
   showDate,
   showSeconds,
+  numeralSize = 'large',
+  glowStrength = 'subtle',
   onCycleColor,
 }) => {
   let hoursNum = time.getHours();
@@ -43,93 +47,113 @@ export const AmbientGlow: React.FC<AmbientGlowProps> = ({
     year: 'numeric',
   });
 
+  const fontSizeClass =
+    numeralSize === 'standard'
+      ? 'text-[22vw] sm:text-[19vw] md:text-[17vw]'
+      : numeralSize === 'xlarge'
+      ? 'text-[32vw] sm:text-[28vw] md:text-[26vw]'
+      : 'text-[27vw] sm:text-[24vw] md:text-[22vw]';
+
+  const glowShadow =
+    glowStrength === 'off'
+      ? 'none'
+      : glowStrength === 'vibrant'
+      ? `0 0 60px ${color.glow}, 0 0 100px ${color.glow}`
+      : `0 0 35px ${color.glow}, 0 0 70px ${color.dimGlow}`;
+
   return (
     <div
       onClick={onCycleColor}
       className={`relative flex flex-col items-center justify-center w-full h-full p-6 select-none cursor-pointer overflow-hidden ${typography.className}`}
     >
       {/* Ambient Breathing Background Radial Halo */}
-      <div
-        className="absolute w-[80vw] h-[80vw] max-w-[600px] max-h-[600px] rounded-full pointer-events-none transition-all duration-1000 animate-pulseGlow blur-3xl opacity-35"
-        style={{
-          background: `radial-gradient(circle, ${color.glow} 0%, transparent 70%)`,
-        }}
-      />
+      {glowStrength !== 'off' && (
+        <div
+          className="absolute w-[80vw] h-[80vw] max-w-[600px] max-h-[600px] rounded-full pointer-events-none transition-all duration-1000 animate-pulseGlow blur-3xl opacity-35"
+          style={{
+            background: `radial-gradient(circle, ${color.glow} 0%, transparent 70%)`,
+          }}
+        />
+      )}
 
       {/* Atmospheric Day & Period Header */}
       {showDate && (
-        <div className="relative z-10 flex flex-col items-center mb-1 sm:mb-3">
-          <span
-            className="text-2xl sm:text-4xl md:text-5xl font-black tracking-tight"
-            style={{
-              color: color.primary,
-              textShadow: `0 0 25px ${color.glow}`,
-            }}
-          >
-            {dayOfWeek}
-          </span>
-          <span
-            className="text-xs sm:text-sm font-bold tracking-widest uppercase opacity-75 mt-0.5"
-            style={{ color: color.secondary }}
-          >
-            {timePeriod}
+        <div className="absolute top-6 sm:top-10 flex flex-col items-center gap-1 transition-all z-10">
+          <div className="flex items-center gap-2">
+            <span
+              className="text-xs sm:text-sm font-semibold tracking-wider uppercase opacity-90"
+              style={{ color: color.primary }}
+            >
+              {dayOfWeek} {timePeriod}
+            </span>
+            {!is24Hour && (
+              <span
+                className="text-[10px] sm:text-xs font-bold font-mono px-1.5 py-0.5 rounded border border-white/10"
+                style={{ color: color.secondary }}
+              >
+                {ampm}
+              </span>
+            )}
+          </div>
+          <span className="text-[11px] sm:text-xs text-zinc-400 font-medium">
+            {fullDate}
           </span>
         </div>
       )}
 
-      {/* Oversized Luminous Digits */}
-      <div className="relative z-10 my-2 sm:my-4 flex items-baseline leading-none">
+      {/* Atmospheric Luminous Clock Digits */}
+      <div className="relative z-10 flex items-center justify-center tracking-tighter leading-none select-none">
         <span
-          className="font-black text-7xl sm:text-9xl md:text-[12rem] lg:text-[14rem] tracking-tight transition-all duration-500"
+          className={`font-black ${fontSizeClass} transition-all duration-500`}
           style={{
             color: color.primary,
-            textShadow: `0 0 25px ${color.primary}, 0 0 60px ${color.glow}, 0 0 110px ${color.dimGlow}`,
+            textShadow: glowShadow,
           }}
         >
-          {hours}:{minutes}
+          {hours}
         </span>
 
-        {!is24Hour && (
-          <span
-            className="text-xl sm:text-3xl md:text-4xl font-extrabold ml-3 sm:ml-5 uppercase tracking-wider"
-            style={{
-              color: color.secondary,
-              textShadow: `0 0 20px ${color.glow}`,
-            }}
-          >
-            {ampm}
-          </span>
+        {/* Floating Ambient Colon */}
+        <span
+          className={`font-black ${fontSizeClass} mx-[1.5vw] opacity-80 animate-pulse`}
+          style={{
+            color: color.secondary,
+            textShadow: glowShadow,
+          }}
+        >
+          :
+        </span>
+
+        <span
+          className={`font-black ${fontSizeClass} transition-all duration-500`}
+          style={{
+            color: color.primary,
+            textShadow: glowShadow,
+          }}
+        >
+          {minutes}
+        </span>
+
+        {/* Optional Seconds */}
+        {showSeconds && (
+          <div className="self-end mb-[2.5vw] ml-[1.5vw]">
+            <span
+              className="text-[5vw] sm:text-[4vw] font-bold font-mono opacity-80"
+              style={{ color: color.secondary }}
+            >
+              {seconds}
+            </span>
+          </div>
         )}
       </div>
 
-      {/* Understated Date & Optional Seconds Pill */}
-      <div className="relative z-10 flex items-center gap-3 mt-2 sm:mt-4">
-        {showDate && (
-          <div
-            className="px-5 py-1.5 rounded-full border backdrop-blur-md text-xs sm:text-sm font-semibold tracking-wider shadow-lg"
-            style={{
-              borderColor: `${color.primary}35`,
-              backgroundColor: `${color.primary}12`,
-              color: color.primary,
-              boxShadow: `0 0 20px ${color.dimGlow}`,
-            }}
-          >
-            {fullDate}
-          </div>
-        )}
-
-        {showSeconds && (
-          <div
-            className="px-3.5 py-1.5 rounded-full border backdrop-blur-md text-xs sm:text-sm font-mono font-bold tracking-wider"
-            style={{
-              borderColor: `${color.secondary}35`,
-              backgroundColor: `${color.secondary}12`,
-              color: color.secondary,
-            }}
-          >
-            :{seconds}
-          </div>
-        )}
+      {/* Subtle Bottom Ambient Baseline */}
+      <div className="absolute bottom-6 sm:bottom-10 flex items-center gap-2 text-xs text-zinc-500 font-mono tracking-widest z-10">
+        <span
+          className="w-2 h-2 rounded-full animate-ping"
+          style={{ backgroundColor: color.primary }}
+        />
+        <span>ATMOSPHERE MODE</span>
       </div>
     </div>
   );

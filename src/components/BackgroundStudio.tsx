@@ -5,6 +5,7 @@ import {
   EffectIntensity,
   ParticleDensity,
   ClockColor,
+  GlowStrength,
 } from '../types';
 
 interface BackgroundStudioProps {
@@ -15,7 +16,11 @@ interface BackgroundStudioProps {
   particleDensity: ParticleDensity;
   blur: boolean;
   customColor: string;
+  customColorSecondary?: string;
   clockColor: ClockColor;
+  glowStrength?: GlowStrength;
+  bgBrightness?: number;
+  reduceMotion?: boolean;
 }
 
 export const BackgroundStudio: React.FC<BackgroundStudioProps> = ({
@@ -26,18 +31,32 @@ export const BackgroundStudio: React.FC<BackgroundStudioProps> = ({
   particleDensity,
   blur,
   customColor,
+  customColorSecondary = '#160d2b',
   clockColor,
+  glowStrength = 'subtle',
+  bgBrightness = 1.0,
+  reduceMotion = false,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
+  // If user has reduceMotion enabled, suppress animation
+  const effectiveAnimated = isAnimated && !reduceMotion;
+
   // Speed factor multipliers
-  const speedMultiplier = speed === 'slow' ? 0.4 : speed === 'fast' ? 1.8 : 1.0;
+  const speedMultiplier =
+    speed === 'slow' ? 0.35 : speed === 'fast' ? 1.8 : 1.0;
 
   // Intensity opacity factor
-  const opacityFactor = intensity === 'low' ? 0.35 : intensity === 'high' ? 0.95 : 0.65;
+  const opacityFactor =
+    intensity === 'low' ? 0.3 : intensity === 'high' ? 0.95 : 0.65;
+
+  // Glow strength multiplier
+  const glowMultiplier =
+    glowStrength === 'off' ? 0 : glowStrength === 'vibrant' ? 1.25 : 0.75;
 
   // Particle count
-  const particleCount = particleDensity === 'low' ? 25 : particleDensity === 'high' ? 85 : 50;
+  const particleCount =
+    particleDensity === 'low' ? 24 : particleDensity === 'high' ? 90 : 50;
 
   // HTML5 Canvas animation loop for Particle & Cosmic Night styles
   useEffect(() => {
@@ -85,7 +104,9 @@ export const BackgroundStudio: React.FC<BackgroundStudioProps> = ({
         radius: Math.random() * (themeId === 'cosmic-night' ? 1.8 : 3.0) + 0.5,
         alpha: Math.random() * 0.7 + 0.2,
         speedX: (Math.random() - 0.5) * 0.4 * speedMultiplier,
-        speedY: (Math.random() - 0.5) * 0.4 * speedMultiplier - (themeId === 'ambient-particles' ? 0.3 : 0),
+        speedY:
+          (Math.random() - 0.5) * 0.4 * speedMultiplier -
+          (themeId === 'ambient-particles' ? 0.3 : 0),
         color: colors[Math.floor(Math.random() * colors.length)],
         twinkleSpeed: Math.random() * 0.02 * speedMultiplier + 0.005,
       });
@@ -100,7 +121,7 @@ export const BackgroundStudio: React.FC<BackgroundStudioProps> = ({
       ctx.clearRect(0, 0, width, height);
 
       particles.forEach((p) => {
-        if (isAnimated) {
+        if (effectiveAnimated) {
           p.x += p.speedX;
           p.y += p.speedY;
 
@@ -135,16 +156,20 @@ export const BackgroundStudio: React.FC<BackgroundStudioProps> = ({
       cancelAnimationFrame(animId);
       window.removeEventListener('resize', handleResize);
     };
-  }, [themeId, isAnimated, speedMultiplier, opacityFactor, particleCount]);
+  }, [themeId, effectiveAnimated, speedMultiplier, opacityFactor, particleCount]);
 
   // Animation duration style based on speed
-  const animDuration = speed === 'slow' ? '28s' : speed === 'fast' ? '9s' : '18s';
+  const animDuration =
+    speed === 'slow' ? '28s' : speed === 'fast' ? '9s' : '18s';
 
   return (
     <div
       className={`absolute inset-0 w-full h-full overflow-hidden pointer-events-none transition-all duration-700 ${
         blur ? 'backdrop-blur-md' : ''
       }`}
+      style={{
+        filter: `brightness(${bgBrightness})`,
+      }}
     >
       {/* 1. OLED Pure Black */}
       {themeId === 'oled-black' && (
@@ -155,8 +180,8 @@ export const BackgroundStudio: React.FC<BackgroundStudioProps> = ({
       {themeId === 'aurora-borealis' && (
         <div className="absolute inset-0 bg-[#020d11]">
           <div
-            className={`absolute -inset-[50%] opacity-80 filter blur-[80px] ${
-              isAnimated ? 'animate-[spin_var(--dur)_linear_infinite]' : ''
+            className={`absolute -inset-[50%] filter blur-[80px] ${
+              effectiveAnimated ? 'animate-[spin_var(--dur)_linear_infinite]' : ''
             }`}
             style={
               {
@@ -175,7 +200,7 @@ export const BackgroundStudio: React.FC<BackgroundStudioProps> = ({
         <div className="absolute inset-0 bg-[#090314]">
           <div
             className={`absolute -inset-[40%] filter blur-[90px] ${
-              isAnimated ? 'animate-[spin_var(--dur)_linear_infinite]' : ''
+              effectiveAnimated ? 'animate-[spin_var(--dur)_linear_infinite]' : ''
             }`}
             style={
               {
@@ -214,11 +239,12 @@ export const BackgroundStudio: React.FC<BackgroundStudioProps> = ({
                 'linear-gradient(180deg, #1c051a 0%, #3b0d26 35%, #581c15 65%, #2a0b12 85%, #0d0208 100%)',
             }}
           />
-          {isAnimated && (
+          {effectiveAnimated && (
             <div
               className="absolute inset-0 animate-pulseGlow filter blur-3xl opacity-40"
               style={{
-                background: 'radial-gradient(ellipse at 50% 80%, #f97316 0%, transparent 60%)',
+                background:
+                  'radial-gradient(ellipse at 50% 80%, #f97316 0%, transparent 60%)',
               }}
             />
           )}
@@ -230,7 +256,9 @@ export const BackgroundStudio: React.FC<BackgroundStudioProps> = ({
         <div className="absolute inset-0 bg-[#010914]">
           <div
             className={`absolute -inset-[30%] filter blur-[80px] ${
-              isAnimated ? 'animate-[spin_var(--dur)_ease-in-out_infinite_alternate]' : ''
+              effectiveAnimated
+                ? 'animate-[spin_var(--dur)_ease-in-out_infinite_alternate]'
+                : ''
             }`}
             style={
               {
@@ -249,7 +277,7 @@ export const BackgroundStudio: React.FC<BackgroundStudioProps> = ({
         <div className="absolute inset-0 bg-[#0a0212]">
           <div
             className={`absolute -inset-[40%] filter blur-[100px] ${
-              isAnimated ? 'animate-[pulseGlow_var(--dur)_ease-in-out_infinite]' : ''
+              effectiveAnimated ? 'animate-[pulseGlow_var(--dur)_ease-in-out_infinite]' : ''
             }`}
             style={
               {
@@ -268,26 +296,30 @@ export const BackgroundStudio: React.FC<BackgroundStudioProps> = ({
         <div className="absolute inset-0 bg-black flex items-center justify-center">
           <div
             className={`w-[85vw] h-[85vw] max-w-[650px] max-h-[650px] rounded-full filter blur-[110px] ${
-              isAnimated ? 'animate-pulseGlow' : ''
+              effectiveAnimated ? 'animate-pulseGlow' : ''
             }`}
             style={{
-              opacity: opacityFactor,
+              opacity: opacityFactor * glowMultiplier,
               background: `radial-gradient(circle, ${clockColor.glow} 0%, transparent 70%)`,
             }}
           />
         </div>
       )}
 
-      {/* 10. Custom Solid Color */}
+      {/* 10. Custom Solid or Dual Gradient Color */}
       {themeId === 'custom-color' && (
         <div
-          className="absolute inset-0 transition-colors duration-500"
-          style={{ backgroundColor: customColor || '#0a0a14' }}
+          className="absolute inset-0 transition-all duration-500"
+          style={{
+            background: customColorSecondary
+              ? `linear-gradient(135deg, ${customColor} 0%, ${customColorSecondary} 100%)`
+              : customColor || '#0a0a14',
+          }}
         />
       )}
 
       {/* Subtle Dark Scrim Overlay to guarantee 100% clock readability at all times */}
-      <div className="absolute inset-0 bg-black/25 pointer-events-none" />
+      <div className="absolute inset-0 bg-black/20 pointer-events-none" />
     </div>
   );
 };

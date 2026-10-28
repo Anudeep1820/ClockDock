@@ -1,5 +1,5 @@
 import React from 'react';
-import { ClockColor, TypographyStyle } from '../../types';
+import { ClockColor, TypographyStyle, NumeralSize, GlowStrength } from '../../types';
 
 interface NeonCyberProps {
   time: Date;
@@ -8,16 +8,20 @@ interface NeonCyberProps {
   is24Hour: boolean;
   showDate: boolean;
   showSeconds: boolean;
+  numeralSize?: NumeralSize;
+  glowStrength?: GlowStrength;
   onCycleColor?: () => void;
 }
 
 export const NeonCyber: React.FC<NeonCyberProps> = ({
   time,
   color,
-  typography,
+  typography: _typography,
   is24Hour,
   showDate,
   showSeconds,
+  numeralSize = 'large',
+  glowStrength = 'subtle',
   onCycleColor,
 }) => {
   let hoursNum = time.getHours();
@@ -35,6 +39,20 @@ export const NeonCyber: React.FC<NeonCyberProps> = ({
     day: 'numeric',
   }).toUpperCase();
 
+  const fontSizeClass =
+    numeralSize === 'standard'
+      ? 'text-5xl sm:text-7xl md:text-8xl'
+      : numeralSize === 'xlarge'
+      ? 'text-8xl sm:text-9xl md:text-[11rem]'
+      : 'text-7xl sm:text-8xl md:text-9xl';
+
+  const glowBlur =
+    glowStrength === 'off'
+      ? 'none'
+      : glowStrength === 'vibrant'
+      ? `0 0 45px ${color.glow}, 0 0 15px ${color.primary}`
+      : `0 0 25px ${color.glow}`;
+
   return (
     <div
       onClick={onCycleColor}
@@ -48,7 +66,7 @@ export const NeonCyber: React.FC<NeonCyberProps> = ({
             style={{
               borderColor: `${color.primary}45`,
               backgroundColor: `${color.primary}12`,
-              boxShadow: `0 0 15px ${color.dimGlow}`,
+              boxShadow: glowStrength !== 'off' ? `0 0 15px ${color.dimGlow}` : 'none',
             }}
           >
             <span
@@ -70,7 +88,7 @@ export const NeonCyber: React.FC<NeonCyberProps> = ({
                 borderColor: `${color.secondary}45`,
                 backgroundColor: `${color.secondary}15`,
                 color: color.secondary,
-                boxShadow: `0 0 10px ${color.dimGlow}`,
+                boxShadow: glowStrength !== 'off' ? `0 0 10px ${color.dimGlow}` : 'none',
               }}
             >
               <span className="inline-block skew-x-12">{ampm}</span>
@@ -87,7 +105,10 @@ export const NeonCyber: React.FC<NeonCyberProps> = ({
           style={{
             borderColor: `${color.primary}50`,
             backgroundColor: 'rgba(5, 5, 10, 0.45)',
-            boxShadow: `0 0 35px ${color.dimGlow}, inset 0 0 20px ${color.dimGlow}`,
+            boxShadow:
+              glowStrength !== 'off'
+                ? `0 0 35px ${color.dimGlow}, inset 0 0 20px ${color.dimGlow}`
+                : 'none',
           }}
         >
           {/* Corner brackets */}
@@ -99,32 +120,32 @@ export const NeonCyber: React.FC<NeonCyberProps> = ({
             className="absolute bottom-0 right-0 w-2 h-2 border-b-2 border-r-2"
             style={{ borderColor: color.primary }}
           />
+
           <span
-            className="font-black text-[24vw] sm:text-[22vw] md:text-[20vw] drop-shadow-2xl transition-colors duration-500"
+            className={`font-black ${fontSizeClass} block tracking-widest transition-all duration-500`}
             style={{
               color: color.primary,
-              textShadow: `0 0 30px ${color.glow}, 0 0 60px ${color.dimGlow}`,
-              WebkitTextStroke: `1px ${color.primary}60`,
+              textShadow: glowBlur,
             }}
           >
             {hoursStr}
           </span>
         </div>
 
-        {/* Cyber Neon Separator Colon */}
-        <div className="flex flex-col justify-center items-center gap-3 sm:gap-5 mx-2 sm:mx-4">
+        {/* Cyber Neon Delimiter */}
+        <div className="flex flex-col items-center justify-center gap-3 sm:gap-4 mx-2 sm:mx-4">
           <span
-            className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 rotate-45 animate-pulse"
+            className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 rounded-xs animate-pulse"
             style={{
               backgroundColor: color.primary,
-              boxShadow: `0 0 15px ${color.primary}`,
+              boxShadow: glowStrength !== 'off' ? `0 0 14px ${color.primary}` : 'none',
             }}
           />
           <span
-            className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 rotate-45 animate-pulse"
+            className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 rounded-xs animate-pulse"
             style={{
               backgroundColor: color.primary,
-              boxShadow: `0 0 15px ${color.primary}`,
+              boxShadow: glowStrength !== 'off' ? `0 0 14px ${color.primary}` : 'none',
             }}
           />
         </div>
@@ -135,9 +156,13 @@ export const NeonCyber: React.FC<NeonCyberProps> = ({
           style={{
             borderColor: `${color.secondary}50`,
             backgroundColor: 'rgba(5, 5, 10, 0.45)',
-            boxShadow: `0 0 35px ${color.dimGlow}, inset 0 0 20px ${color.dimGlow}`,
+            boxShadow:
+              glowStrength !== 'off'
+                ? `0 0 35px ${color.dimGlow}, inset 0 0 20px ${color.dimGlow}`
+                : 'none',
           }}
         >
+          {/* Corner brackets */}
           <div
             className="absolute top-0 right-0 w-2 h-2 border-t-2 border-r-2"
             style={{ borderColor: color.secondary }}
@@ -146,48 +171,42 @@ export const NeonCyber: React.FC<NeonCyberProps> = ({
             className="absolute bottom-0 left-0 w-2 h-2 border-b-2 border-l-2"
             style={{ borderColor: color.secondary }}
           />
+
           <span
-            className="font-black text-[24vw] sm:text-[22vw] md:text-[20vw] drop-shadow-2xl transition-colors duration-500"
+            className={`font-black ${fontSizeClass} block tracking-widest transition-all duration-500`}
             style={{
               color: color.secondary,
-              textShadow: `0 0 30px ${color.glow}, 0 0 60px ${color.dimGlow}`,
-              WebkitTextStroke: `1px ${color.secondary}60`,
+              textShadow: glowBlur,
             }}
           >
             {minutesStr}
           </span>
         </div>
-      </div>
 
-      {/* Cyber Seconds Bar */}
-      {showSeconds && (
-        <div className="absolute bottom-6 sm:bottom-10 md:bottom-12 flex items-center gap-3 -skew-x-6">
-          <div
-            className="flex items-center gap-1.5 px-3 py-1 rounded-sm border"
-            style={{
-              borderColor: `${color.primary}35`,
-              backgroundColor: 'rgba(0,0,0,0.5)',
-            }}
-          >
+        {/* Seconds Counter (Optional) */}
+        {showSeconds && (
+          <div className="ml-2 sm:ml-4 self-end mb-2 sm:mb-4 px-2 py-1 rounded border border-white/10 bg-black/60">
             <span
-              className="text-[10px] sm:text-xs font-mono font-bold tracking-widest uppercase"
-              style={{ color: color.primary }}
+              className="text-lg sm:text-2xl md:text-3xl font-mono font-bold tracking-widest"
+              style={{
+                color: color.primary,
+                textShadow: glowStrength !== 'off' ? `0 0 12px ${color.glow}` : 'none',
+              }}
             >
-              SYNC : {secondsStr}S
+              {secondsStr}
             </span>
           </div>
-          <div className="w-24 sm:w-36 h-1.5 rounded-sm bg-white/10 overflow-hidden">
-            <div
-              className="h-full transition-all duration-200"
-              style={{
-                width: `${(time.getSeconds() / 59) * 100}%`,
-                backgroundColor: color.primary,
-                boxShadow: `0 0 10px ${color.primary}`,
-              }}
-            />
-          </div>
-        </div>
-      )}
+        )}
+      </div>
+
+      {/* Cyber Grid status footer */}
+      <div className="absolute bottom-5 sm:bottom-8 flex items-center gap-4 text-[9px] sm:text-[10px] text-zinc-500 font-mono tracking-widest">
+        <span>CORE // ONLINE</span>
+        <span>•</span>
+        <span style={{ color: color.primary }}>FPS // 60.0</span>
+        <span>•</span>
+        <span>HUD // ACTIVE</span>
+      </div>
     </div>
   );
 };

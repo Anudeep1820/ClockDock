@@ -1,0 +1,82 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    user-select: none;
+    background-color: #000000;
+    color: #ffffff;
+    font-family: 'Outfit', 'Inter', system-ui, -apple-system, sans-serif;
+  }
+}
+
+/* Custom fonts helper classes */
+.font-display-digits {
+  font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+}
+
+.font-mono-clock {
+  font-family: 'DM Mono', 'Space Mono', monospace;
+}
+
+.font-cyber {
+  font-family: 'Chakra Petch', sans-serif;
+}
+
+/* StandBy Ambient Red and Color Tints */
+.tint-crimson {
+  --tint-color: #ef4444;
+  --tint-glow: rgba(239, 68, 68, 0.45);
+}
+.tint-teal {
+  --tint-color: #06b6d4;
+  --tint-glow: rgba(6, 182, 212, 0.45);
+}
+.tint-mint {
+  --tint-color: #10b981;
+  --tint-glow: rgba(16, 185, 129, 0.45);
+}
+.tint-amber {
+  --tint-color: #f59e0b;
+  --tint-glow: rgba(245, 158, 11, 0.45);
+}
+.tint-orange {
+  --tint-color: #f97316;
+  --tint-glow: rgba(249, 115, 22, 0.45);
+}
+.tint-moonlight {
+  --tint-color: #e2e8f0;
+  --tint-glow: rgba(226, 232, 240, 0.35);
+}
+.tint-lime {
+  --tint-color: #84cc16;
+  --tint-glow: rgba(132, 204, 22, 0.45);
+}
+
+/* Glowing text effects */
+.text-glow {
+  text-shadow: 0 0 20px currentColor, 0 0 40px currentColor;
+}
+.text-subtle-glow {
+  text-shadow: 0 0 12px currentColor;
+}
+
+/* Flip Clock Card styling */
+.flip-card {
+  perspective: 1000px;
+}
+
+/* Hide scrollbars for smooth bedside dock display */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}

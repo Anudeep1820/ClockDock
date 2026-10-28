@@ -1,7 +1,7 @@
 {
-  "name": "ClockDock — Bedside & StandBy Clock",
+  "name": "ClockDock — Premium StandBy Clock & Screensaver",
   "short_name": "ClockDock",
-  "description": "Smart Bedside Clock with customizable widgets, music reactivity, and night mode",
+  "description": "Premium, distraction-free bedside clock and screensaver inspired by iPhone StandBy mode",
   "start_url": "/",
   "display": "standalone",
   "orientation": "any",

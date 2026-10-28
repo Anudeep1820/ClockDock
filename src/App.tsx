@@ -1,113 +1,145 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { ClockFace, NightTint } from './types';
-import { PALETTES, NIGHT_TINTS } from './utils/themes';
-import { ClockBigBold } from './components/ClockBigBold';
-import { ClockRetroFlip } from './components/ClockRetroFlip';
-import { ClockAnalog } from './components/ClockAnalog';
-import { ClockNeonSlice } from './components/ClockNeonSlice';
-import { ClockNightGlow } from './components/ClockNightGlow';
-import { DualWidgetStandby } from './components/DualWidgetStandby';
-import { UnifiedSettingsModal } from './components/UnifiedSettingsModal';
-import { Settings, Sparkles, RotateCw } from 'lucide-react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { ClockSettings, ClockFaceId } from './types';
+import { loadSettings, saveSettings, resetSettings } from './utils/storage';
+import {
+  getTheme,
+  getColor,
+  getTypography,
+  CLOCK_COLORS,
+  CLOCK_FACES,
+} from './utils/themes';
+import { StandByDigital } from './components/faces/StandByDigital';
+import { MinimalAnalog } from './components/faces/MinimalAnalog';
+import { RetroFlip } from './components/faces/RetroFlip';
+import { AmbientGlow } from './components/faces/AmbientGlow';
+import { SettingsSheet } from './components/SettingsSheet';
+import { Settings, Maximize2, Minimize2, Zap, RotateCw } from 'lucide-react';
 
 export const App: React.FC = () => {
-  // Current Time State
-  const [currentTime, setCurrentTime] = useState<Date>(new Date());
-
-  // Clock Face
-  const [currentFace, setCurrentFace] = useState<ClockFace>('standby-dual');
-  const [paletteIndex, setPaletteIndex] = useState(0);
-
-  // Settings
-  const [is24Hour, setIs24Hour] = useState(false);
-  const [nightMode, setNightMode] = useState(false);
-  const [activeTint, setActiveTint] = useState<NightTint>('crimson');
-  const [dimLevel, setDimLevel] = useState(1.0);
-  const [wakeLockActive, setWakeLockActive] = useState(false);
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  // 1. Settings state (loaded & persisted to localStorage)
+  const [settings, setSettings] = useState<ClockSettings>(() => loadSettings());
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
-  // Orientation State
-  const [isLandscape, setIsLandscape] = useState(
-    typeof window !== 'undefined' ? window.innerWidth > window.innerHeight : false
-  );
-  const [forcedLandscape, setForcedLandscape] = useState(false);
+  // 2. High-precision live time
+  const [currentTime, setCurrentTime] = useState<Date>(new Date());
 
-  // Controls Visibility (Auto-fade on idle so screen is pure clean)
+  // 3. Immersive control visibility (auto-hides on idle)
   const [controlsVisible, setControlsVisible] = useState(true);
-  const idleTimeoutRef = useRef<number | null>(null);
+  const idleTimerRef = useRef<number | null>(null);
+
+  // 4. Fullscreen & Wake Lock state
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [wakeLockActive, setWakeLockActive] = useState(false);
   const wakeLockSentinel = useRef<unknown>(null);
 
-  // Live Clock Tick
+  // 5. Touch swipe handling for horizontal face switching
+  const touchStartX = useRef<number | null>(null);
+  const touchStartY = useRef<number | null>(null);
+
+  // Update and persist settings
+  const handleUpdateSettings = useCallback((partial: Partial<ClockSettings>) => {
+    setSettings((prev) => {
+      const next = { ...prev, ...partial };
+      saveSettings(next);
+      return next;
+    });
+  }, []);
+
+  const handleResetSettings = useCallback(() => {
+    const fresh = resetSettings();
+    setSettings(fresh);
+  }, []);
+
+  // Live Clock Tick & Visibility Change recovery
   useEffect(() => {
-    const timer = setInterval(() => {
+    let animId: number;
+
+    const tick = () => {
       setCurrentTime(new Date());
-    }, 1000);
-    return () => clearInterval(timer);
-  }, []);
-
-  // Listen for orientation change & window resize
-  useEffect(() => {
-    const handleResize = () => {
-      setIsLandscape(window.innerWidth > window.innerHeight);
+      animId = requestAnimationFrame(tick);
     };
-    window.addEventListener('resize', handleResize);
-    window.addEventListener('orientationchange', handleResize);
+
+    animId = requestAnimationFrame(tick);
+
+    // Refresh immediately when returning from background
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        setCurrentTime(new Date());
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
     return () => {
-      window.removeEventListener('resize', handleResize);
-      window.removeEventListener('orientationchange', handleResize);
+      cancelAnimationFrame(animId);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, []);
 
-  // Auto-hide controls for pure clean bedside view
-  const handleUserActivity = () => {
+  // Idle Activity Detector (fades controls after 3.5s)
+  const reportActivity = useCallback(() => {
     setControlsVisible(true);
-    if (idleTimeoutRef.current) {
-      window.clearTimeout(idleTimeoutRef.current);
+    if (idleTimerRef.current) {
+      window.clearTimeout(idleTimerRef.current);
     }
-    idleTimeoutRef.current = window.setTimeout(() => {
+    idleTimerRef.current = window.setTimeout(() => {
       setControlsVisible(false);
     }, 3500);
+  }, []);
+
+  useEffect(() => {
+    window.addEventListener('mousemove', reportActivity);
+    window.addEventListener('touchstart', reportActivity, { passive: true });
+    window.addEventListener('keydown', reportActivity);
+
+    idleTimerRef.current = window.setTimeout(() => {
+      setControlsVisible(false);
+    }, 3500);
+
+    return () => {
+      window.removeEventListener('mousemove', reportActivity);
+      window.removeEventListener('touchstart', reportActivity);
+      window.removeEventListener('keydown', reportActivity);
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+    };
+  }, [reportActivity]);
+
+  // Touch Swipe to switch faces (iOS StandBy behavior)
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+    touchStartY.current = e.touches[0].clientY;
   };
 
-  useEffect(() => {
-    window.addEventListener('mousemove', handleUserActivity);
-    window.addEventListener('touchstart', handleUserActivity);
-    window.addEventListener('keydown', handleUserActivity);
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartX.current === null || touchStartY.current === null) return;
+    const deltaX = e.changedTouches[0].clientX - touchStartX.current;
+    const deltaY = e.changedTouches[0].clientY - touchStartY.current;
 
-    idleTimeoutRef.current = window.setTimeout(() => {
-      setControlsVisible(false);
-    }, 3500);
+    // Minimum swipe threshold
+    if (Math.abs(deltaX) > 45 && Math.abs(deltaX) > Math.abs(deltaY) * 1.5) {
+      const faces: ClockFaceId[] = [
+        'standby-digital',
+        'minimal-analog',
+        'retro-flip',
+        'ambient-glow',
+      ];
+      const currentIndex = faces.indexOf(settings.face);
 
-    return () => {
-      window.removeEventListener('mousemove', handleUserActivity);
-      window.removeEventListener('touchstart', handleUserActivity);
-      window.removeEventListener('keydown', handleUserActivity);
-      if (idleTimeoutRef.current) clearTimeout(idleTimeoutRef.current);
-    };
-  }, []);
+      if (deltaX < 0) {
+        // Swiped Left -> Next face
+        const nextIndex = (currentIndex + 1) % faces.length;
+        handleUpdateSettings({ face: faces[nextIndex] });
+      } else {
+        // Swiped Right -> Prev face
+        const prevIndex = (currentIndex - 1 + faces.length) % faces.length;
+        handleUpdateSettings({ face: faces[prevIndex] });
+      }
+    }
 
-  // Keyboard Shortcuts
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+    touchStartX.current = null;
+    touchStartY.current = null;
+  };
 
-      if (e.key === 'n' || e.key === 'N') setNightMode((prev) => !prev);
-      else if (e.key === 'f' || e.key === 'F') toggleFullscreen();
-      else if (e.key === 's' || e.key === 'S') setIsSettingsOpen((prev) => !prev);
-      else if (e.key === 'r' || e.key === 'R') setForcedLandscape((prev) => !prev);
-      else if (e.key === '1') setCurrentFace('standby-dual');
-      else if (e.key === '2') setCurrentFace('big-bold');
-      else if (e.key === '3') setCurrentFace('retro-flip');
-      else if (e.key === '4') setCurrentFace('minimal-analog');
-      else if (e.key === '5') setCurrentFace('neon-slice');
-      else if (e.key === '6') setCurrentFace('night-glow');
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
-
-  // Screen Wake Lock API
+  // Screen Wake Lock API (keeps bedside display on while plugged in)
   const toggleWakeLock = async () => {
     if ('wakeLock' in navigator) {
       if (wakeLockActive && wakeLockSentinel.current) {
@@ -131,11 +163,11 @@ export const App: React.FC = () => {
         }
       }
     } else {
-      setWakeLockActive(!wakeLockActive);
+      setWakeLockActive((prev) => !prev);
     }
   };
 
-  // Fullscreen with Landscape Lock
+  // Fullscreen toggle
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
       document.documentElement.requestFullscreen?.().catch(() => {});
@@ -153,163 +185,210 @@ export const App: React.FC = () => {
     }
   };
 
-  const currentPalette = PALETTES[paletteIndex % PALETTES.length];
-  const activeTintHex = NIGHT_TINTS.find((t) => t.id === activeTint)?.hex || '#ef4444';
+  // Cycle accent color with 1 tap on the clock
+  const cycleColor = useCallback(() => {
+    const currentIndex = CLOCK_COLORS.findIndex((c) => c.id === settings.clockColor);
+    const nextIndex = (currentIndex + 1) % CLOCK_COLORS.length;
+    handleUpdateSettings({ clockColor: CLOCK_COLORS[nextIndex].id });
+  }, [settings.clockColor, handleUpdateSettings]);
 
-  const cyclePalette = () => {
-    setPaletteIndex((prev) => (prev + 1) % PALETTES.length);
-  };
+  // Keyboard Shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
 
-  const effectiveLandscape = isLandscape || forcedLandscape;
+      if (e.key === 's' || e.key === 'S') setIsSettingsOpen((p) => !p);
+      else if (e.key === 'f' || e.key === 'F') toggleFullscreen();
+      else if (e.key === 'n' || e.key === 'N') {
+        handleUpdateSettings({
+          clockColor: settings.clockColor === 'crimson' ? 'warm-white' : 'crimson',
+        });
+      } else if (e.key === '1') handleUpdateSettings({ face: 'standby-digital' });
+      else if (e.key === '2') handleUpdateSettings({ face: 'minimal-analog' });
+      else if (e.key === '3') handleUpdateSettings({ face: 'retro-flip' });
+      else if (e.key === '4') handleUpdateSettings({ face: 'ambient-glow' });
+      else if (e.key === 'ArrowRight') {
+        const faces: ClockFaceId[] = [
+          'standby-digital',
+          'minimal-analog',
+          'retro-flip',
+          'ambient-glow',
+        ];
+        const next = (faces.indexOf(settings.face) + 1) % faces.length;
+        handleUpdateSettings({ face: faces[next] });
+      } else if (e.key === 'ArrowLeft') {
+        const faces: ClockFaceId[] = [
+          'standby-digital',
+          'minimal-analog',
+          'retro-flip',
+          'ambient-glow',
+        ];
+        const prev = (faces.indexOf(settings.face) - 1 + faces.length) % faces.length;
+        handleUpdateSettings({ face: faces[prev] });
+      } else if (e.key === ' ') {
+        cycleColor();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [settings.clockColor, settings.face, handleUpdateSettings, cycleColor]);
+
+  const activeTheme = getTheme(settings.bgTheme);
+  const activeColor = getColor(settings.clockColor);
+  const activeTypography = getTypography(settings.fontStyle);
 
   return (
     <div
-      className="relative w-screen h-[100dvh] overflow-hidden bg-black select-none flex items-center justify-center m-0 p-0"
+      className={`relative w-screen h-[100dvh] overflow-hidden select-none flex items-center justify-center transition-colors duration-700 ${activeTheme.className}`}
       style={{
-        filter: `brightness(${dimLevel})`,
-        transition: 'filter 0.3s ease',
+        ...activeTheme.style,
+        filter: `brightness(${settings.dimmer})`,
+        transition: 'filter 0.3s ease, background 0.7s ease',
       }}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
     >
-      {/* Container: If forcedLandscape is enabled, rotate 90° for phone dock stand */}
+      {/* Rotation Wrapper: Forces landscape orientation 90deg when user toggles forcedLandscape on mobile */}
       <div
         className={`relative flex items-center justify-center transition-all duration-300 overflow-hidden ${
-          forcedLandscape
+          settings.forcedLandscape
             ? 'w-[100dvh] h-[100dvw] rotate-90 origin-center absolute'
             : 'w-full h-full'
         }`}
       >
-        {/* TOP LEFT: Quick Rotate to Landscape Dock Button */}
+        {/* SUBTLE CORNER CONTROLS (Fade out on idle for pure dark immersion) */}
         <div
-          className={`fixed top-3 left-3 sm:top-5 sm:left-5 z-40 transition-all duration-700 ${
-            controlsVisible ? 'opacity-100' : 'opacity-20 hover:opacity-100'
+          className={`fixed top-3 right-3 sm:top-6 sm:right-6 z-40 flex items-center gap-2 transition-all duration-700 ${
+            controlsVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'
           }`}
         >
+          {/* Always-On Screen WakeLock */}
           <button
-            onClick={() => setForcedLandscape((prev) => !prev)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border backdrop-blur-xl text-xs font-bold transition-all shadow-xl ${
-              forcedLandscape
-                ? 'bg-sky-500 text-black border-sky-400'
-                : 'bg-zinc-900/70 text-zinc-300 border-zinc-800/80 hover:text-white'
+            onClick={toggleWakeLock}
+            className={`p-2.5 rounded-full border backdrop-blur-xl shadow-lg transition-all ${
+              wakeLockActive
+                ? 'border-amber-400 bg-amber-500/20 text-amber-300 shadow-[0_0_15px_rgba(245,158,11,0.4)]'
+                : 'border-white/10 bg-black/40 text-zinc-400 hover:text-white'
             }`}
-            title="Toggle Side-by-Side Landscape Mode (Rotates 90° for Bedside Dock)"
+            title={wakeLockActive ? 'Screen Always-On Active' : 'Enable Screen Always-On'}
           >
-            <RotateCw className="w-3.5 h-3.5" />
-            <span>{forcedLandscape ? 'Side-by-Side Locked' : 'Side-by-Side'}</span>
+            <Zap className="w-4 h-4" />
           </button>
-        </div>
 
-        {/* TOP RIGHT: Single Subtle Settings Gear */}
-        <div
-          className={`fixed top-3 right-3 sm:top-5 sm:right-5 z-40 transition-all duration-700 ${
-            controlsVisible ? 'opacity-100' : 'opacity-20 hover:opacity-100'
-          }`}
-        >
+          {/* Fullscreen */}
+          <button
+            onClick={toggleFullscreen}
+            className="p-2.5 rounded-full border border-white/10 bg-black/40 backdrop-blur-xl text-zinc-400 hover:text-white transition-all shadow-lg"
+            title={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
+          >
+            {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+          </button>
+
+          {/* Quick Rotate to 90° Landscape */}
+          <button
+            onClick={() => handleUpdateSettings({ forcedLandscape: !settings.forcedLandscape })}
+            className={`p-2.5 rounded-full border backdrop-blur-xl transition-all shadow-lg ${
+              settings.forcedLandscape
+                ? 'border-sky-400 bg-sky-500/20 text-sky-300'
+                : 'border-white/10 bg-black/40 text-zinc-400 hover:text-white'
+            }`}
+            title="Toggle 90° Landscape Dock Mode"
+          >
+            <RotateCw className="w-4 h-4" />
+          </button>
+
+          {/* Settings Sheet Trigger */}
           <button
             onClick={() => setIsSettingsOpen(true)}
-            className="p-2 sm:p-2.5 rounded-full bg-zinc-900/70 border border-zinc-800/80 backdrop-blur-xl text-zinc-300 hover:text-white hover:scale-105 active:scale-95 transition-all shadow-xl"
-            title="Open Settings"
+            className="p-2.5 rounded-full border border-white/10 bg-black/40 backdrop-blur-xl text-zinc-300 hover:text-white hover:scale-105 active:scale-95 transition-all shadow-lg"
+            title="Open Settings (S)"
           >
-            <Settings className="w-5 h-5" />
+            <Settings className="w-4 h-4" />
           </button>
         </div>
 
-        {/* BOTTOM RIGHT: Subtle Palette Switcher */}
+        {/* CLOCK FACE NAVIGATION PILLS (Bottom subtle indicator) */}
         <div
-          className={`fixed bottom-3 right-3 sm:bottom-5 sm:right-5 z-40 transition-all duration-700 ${
-            controlsVisible ? 'opacity-100' : 'opacity-0'
+          className={`fixed bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/40 border border-white/10 backdrop-blur-xl transition-all duration-700 ${
+            controlsVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'
           }`}
         >
-          <button
-            onClick={cyclePalette}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-zinc-900/60 border border-zinc-800/80 backdrop-blur-xl text-xs font-semibold text-zinc-400 hover:text-white transition-all"
-            title="Switch Color Theme"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-pink-400" />
-            <span className="hidden sm:inline">Theme</span>
-          </button>
+          {CLOCK_FACES.map((face) => {
+            const isSelected = settings.face === face.id;
+            return (
+              <button
+                key={face.id}
+                onClick={() => handleUpdateSettings({ face: face.id })}
+                className={`transition-all duration-300 rounded-full ${
+                  isSelected
+                    ? 'w-6 h-2 bg-white shadow-md'
+                    : 'w-2 h-2 bg-white/30 hover:bg-white/60'
+                }`}
+                title={face.name}
+              />
+            );
+          })}
         </div>
 
-        {/* MAIN STAGE */}
+        {/* MAIN CLOCK DISPLAY */}
         <main className="w-full h-full flex items-center justify-center overflow-hidden">
-          {currentFace === 'standby-dual' && (
-            <DualWidgetStandby
+          {settings.face === 'standby-digital' && (
+            <StandByDigital
               time={currentTime}
-              palette={currentPalette}
-              nightMode={nightMode}
-              nightHex={activeTintHex}
-              is24Hour={is24Hour}
-              isLandscape={effectiveLandscape}
+              color={activeColor}
+              typography={activeTypography}
+              is24Hour={settings.is24Hour}
+              showDate={settings.showDate}
+              showSeconds={settings.showSeconds}
+              onCycleColor={cycleColor}
             />
           )}
 
-          {currentFace === 'big-bold' && (
-            <ClockBigBold
+          {settings.face === 'minimal-analog' && (
+            <MinimalAnalog
               time={currentTime}
-              palette={currentPalette}
-              is24Hour={is24Hour}
-              nightMode={nightMode}
-              nightHex={activeTintHex}
-              onCyclePalette={cyclePalette}
+              color={activeColor}
+              typography={activeTypography}
+              showDate={settings.showDate}
+              showSeconds={settings.showSeconds}
+              onCycleColor={cycleColor}
             />
           )}
 
-          {currentFace === 'retro-flip' && (
-            <ClockRetroFlip
+          {settings.face === 'retro-flip' && (
+            <RetroFlip
               time={currentTime}
-              nightMode={nightMode}
-              nightHex={activeTintHex}
-              is24Hour={is24Hour}
+              color={activeColor}
+              typography={activeTypography}
+              is24Hour={settings.is24Hour}
+              showDate={settings.showDate}
+              showSeconds={settings.showSeconds}
+              onCycleColor={cycleColor}
             />
           )}
 
-          {currentFace === 'minimal-analog' && (
-            <ClockAnalog
+          {settings.face === 'ambient-glow' && (
+            <AmbientGlow
               time={currentTime}
-              nightMode={nightMode}
-              nightHex={activeTintHex}
-            />
-          )}
-
-          {currentFace === 'neon-slice' && (
-            <ClockNeonSlice
-              time={currentTime}
-              nightMode={nightMode}
-              nightHex={activeTintHex}
-              is24Hour={is24Hour}
-            />
-          )}
-
-          {currentFace === 'night-glow' && (
-            <ClockNightGlow
-              time={currentTime}
-              nightMode={nightMode}
-              nightHex={activeTintHex}
-              is24Hour={is24Hour}
+              color={activeColor}
+              typography={activeTypography}
+              is24Hour={settings.is24Hour}
+              showDate={settings.showDate}
+              showSeconds={settings.showSeconds}
+              onCycleColor={cycleColor}
             />
           )}
         </main>
       </div>
 
-      {/* SINGLE UNIFIED SETTINGS MODAL */}
-      <UnifiedSettingsModal
+      {/* DEDICATED SETTINGS SHEET */}
+      <SettingsSheet
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
-        currentFace={currentFace}
-        onChangeFace={setCurrentFace}
-        nightMode={nightMode}
-        onToggleNightMode={() => setNightMode((p) => !p)}
-        activeTint={activeTint}
-        onSelectTint={setActiveTint}
-        dimLevel={dimLevel}
-        onChangeDim={setDimLevel}
-        is24Hour={is24Hour}
-        onToggle24Hour={() => setIs24Hour((p) => !p)}
-        isFullscreen={isFullscreen}
-        onToggleFullscreen={toggleFullscreen}
-        wakeLockActive={wakeLockActive}
-        onToggleWakeLock={toggleWakeLock}
-        forcedLandscape={forcedLandscape}
-        onToggleForcedLandscape={() => setForcedLandscape((prev) => !prev)}
+        settings={settings}
+        onUpdate={handleUpdateSettings}
+        onReset={handleResetSettings}
       />
     </div>
   );

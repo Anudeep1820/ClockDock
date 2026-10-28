@@ -1,47 +1,47 @@
-# ⏰ ClockDock — Smart Bedside & StandBy Clock
+# ⏰ ClockDock — Premium StandBy Clock & Screensaver
 
-A sleek, responsive, and customizable bedside clock web application inspired by iOS 17 StandBy Mode, smart charging docks, and minimalist bedside displays.
+A distraction-free bedside clock and screensaver inspired by iPhone StandBy mode, crafted with React, TypeScript, Vite, and Tailwind CSS.
 
-![ClockDock Banner](https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=1200&h=400&fit=crop)
+---
 
 ## ✨ Features
 
-- 📱 **Pair Any Two Widgets (Duo StandBy Mode)**
-  - Dual-pane customizable dock view matching iOS StandBy
-  - Select widgets for Left and Right slots: Digital Clock, Analog Swiss Dial, Music Player, Calendar & Agenda, Bedside Weather, Sleep Sound Machine, Power/Battery dock
-  - Quick swap button between left and right slots
+- **Four Handcrafted Clock Faces:**
+  - 🕒 **StandBy Digital:** Large dual-tone numerals with soft breathing separator dots and date complication. High-contrast readability across a bedroom.
+  - 🧭 **Minimal Analog:** Refined Bauhaus circular dial with continuous sub-second smooth sweeping second hand and date complication at 3 o'clock.
+  - 🎴 **Retro Flip:** Tactile split-flap cards with realistic card shadows, divider lines, and 3D mechanical flip card animations.
+  - 🌌 **Ambient Glow:** Oversized typography with ethereal multi-layer luminous glow and atmospheric breathing aura.
 
-- 🕐 **Multiple Clock Faces**
-  - **Duo Widgets**: Side-by-side widgets with auto-scaling
-  - **Big Bold**: Ultra-high-contrast digits readable from across the room with dual-tone coloring
-  - **Retro Flip Clock**: Mechanical flip-board split cards with 3D depth
-  - **Minimal Analog Dial**: Smooth-sweeping chronometer with date complication and Bauhaus styling
-  - **Neon Slice**: Cyberpunk angled split numerals with vivid neon glow
-  - **Night Glow**: Deep dark mode with day, night period, and astronomical date readout
+- **Atmospheric Visual Customization:**
+  - **7 Background Themes:** OLED Black (`#000000`), Midnight Blue, Deep Purple, Forest Green, Sunset Gradient, Warm Ember, and Aurora.
+  - **7 Clock Color Accents:** Warm White, Crimson Red (0% blue light circadian mode), Sunset Amber, Electric Cyan, Mint Green, Lavender, and Golden Amber.
+  - **5 Distinct Typography Styles:** Modern Sans (`Outfit`), Mono Geometry (`DM Mono`), Space Grotesk, Futuristic Cyber (`Chakra Petch`), and Editorial Serif (`Playfair Display`).
+  - **Display Toggles:** 12H / 24H format, Show/Hide Date, Show/Hide Seconds.
+  - **Bedside Screen Dimmer:** Smooth visual brightness slider (15% to 100%).
+  - **90° Landscape Dock Mode:** Toggle for bedside charging stands.
+  - **Instant Preview & Persistence:** Live updates persisted to `localStorage` with a 1-click "Restore Defaults" button.
 
-- 🌙 **Circadian Night Mode & Tint Swatches**
-  - OLED pure black backgrounds with true 0% blue-light red spectrum mode
-  - 7 luminous tint swatches: Crimson Red, Cool Teal, Mint Green, Sunset Amber, Ember Orange, Moonlight White, Night Lime
-  - Screen dimmer brightness slider (15% to 100%) for pitch-black bedrooms
+- **Immersive StandBy Bedside Mode:**
+  - Built with `100dvh` and `100dvw` viewport bounds.
+  - Controls automatically fade after 3.5 seconds of inactivity. Tapping or moving reveals controls.
+  - Horizontal touch swipe gestures to switch between clock faces.
+  - Screen Wake Lock API keeps bedside display on while charging.
+  - One-tap Fullscreen mode.
+  - Progressive Web App (PWA) with standalone home-screen installation on iPhone and Android.
 
-- 🎵 **Interactive Bedside Music Player**
-  - Track artwork, artist info, seeking scrubber, and animated sound visualizer
-  - Real-time chill lofi chord generator via Web Audio API
+---
 
-- 🌧️ **Ambient Sleep Sound Generator**
-  - Synthetic Web Audio sleep sounds: Gentle Rain, Ocean Waves, Night Campfire, White Noise
-  - Zero external sound downloads required — works 100% offline!
+## ⌨️ Controls & Shortcuts
 
-- ⚡ **Charging Dock & Power Status**
-  - Real browser Battery API integration displaying live battery percentage, charging rate, and MagSafe animation
+- **`Swipe Left / Right`**: Switch between clock faces
+- **`1` – `4`**: Jump to specific clock face
+- **`Space` or `Tap Clock`**: Cycle clock accent colors
+- **`S`**: Open Settings Sheet
+- **`N`**: Toggle Circadian Night Mode (Crimson)
+- **`F`**: Toggle Fullscreen Mode
+- **`R`**: Toggle 90° Landscape Mode
 
-- ⏰ **Bedside Alarms**
-  - Custom wakeup times with soothing synthesized audio chimes
-
-- 🖥️ **Dock Immersion**
-  - Fullscreen one-tap toggle (`F` key)
-  - Screen Wake Lock API (keeps screen awake while placed on charging dock)
-  - Auto-hiding dock controls on idle for complete bedroom serenity
+---
 
 ## 🚀 Quick Start
 
@@ -59,10 +59,3 @@ npm run dev
 # Build for production
 npm run build
 ```
-
-## ⌨️ Keyboard Shortcuts
-
-- `1` - `6`: Switch clock styles
-- `N`: Toggle Night Mode
-- `F`: Toggle Fullscreen
-- `Space`: Play / Pause Lofi sound

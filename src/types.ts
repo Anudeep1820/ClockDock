@@ -1,54 +1,67 @@
-export type ClockFace =
-  | 'standby-dual'      // Dual widgets (Clock + Music/Calendar like iOS StandBy)
-  | 'big-bold'          // Huge digits across room (Image 1, 2, 3)
-  | 'retro-flip'        // Classic mechanical flip clock (Image 1)
-  | 'minimal-analog'    // Swiss Bauhaus dial with smooth sweep (Image 4, 5)
-  | 'neon-slice'        // Angled high-contrast split (Image 1)
-  | 'night-glow'        // Atmospheric night date clock (Image 1)
-  | 'botanical-zen';    // Soft organic sage aesthetic
+export type ClockFaceId =
+  | 'standby-digital'
+  | 'minimal-analog'
+  | 'retro-flip'
+  | 'ambient-glow';
 
-export type WidgetType =
-  | 'clock-digital'
-  | 'clock-analog'
-  | 'music'
-  | 'calendar'
-  | 'weather'
-  | 'sleep-sounds'
-  | 'battery'
-  | 'quotes';
+export type BackgroundThemeId =
+  | 'oled-black'
+  | 'midnight-blue'
+  | 'deep-purple'
+  | 'forest-green'
+  | 'sunset-gradient'
+  | 'warm-ember'
+  | 'aurora';
 
-export type NightTint =
+export type ClockColorId =
+  | 'warm-white'
   | 'crimson'
-  | 'teal'
+  | 'sunset-amber'
+  | 'electric-cyan'
   | 'mint'
-  | 'amber'
-  | 'orange'
-  | 'moonlight'
-  | 'lime';
+  | 'lavender'
+  | 'golden-amber';
 
-export interface ColorPalette {
-  id: string;
+export type TypographyStyleId =
+  | 'modern'
+  | 'mono'
+  | 'grotesk'
+  | 'cyber'
+  | 'serif';
+
+export interface BackgroundTheme {
+  id: BackgroundThemeId;
   name: string;
-  hours: string;
-  minutes: string;
-  accent: string;
-  badgeBg: string;
+  className: string;
+  style: React.CSSProperties;
+  previewGradient: string;
 }
 
-export interface SoundTrack {
-  id: string;
-  title: string;
-  artist: string;
-  album: string;
-  cover: string;
-  duration: number; // in seconds
-  color: string;
+export interface ClockColor {
+  id: ClockColorId;
+  name: string;
+  primary: string;
+  secondary: string;
+  glow: string;
+  dimGlow: string;
 }
 
-export interface AlarmItem {
-  id: string;
-  time: string; // HH:mm
-  label: string;
-  enabled: boolean;
-  days: string[];
+export interface TypographyStyle {
+  id: TypographyStyleId;
+  name: string;
+  fontFamily: string;
+  className: string;
+  sample: string;
+}
+
+export interface ClockSettings {
+  face: ClockFaceId;
+  bgTheme: BackgroundThemeId;
+  clockColor: ClockColorId;
+  fontStyle: TypographyStyleId;
+  is24Hour: boolean;
+  showDate: boolean;
+  showSeconds: boolean;
+  dimmer: number; // 0.15 to 1.0
+  forcedLandscape: boolean;
 }

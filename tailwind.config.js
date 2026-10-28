@@ -13,6 +13,10 @@ export default {
         display: ['SF Pro Display', '-apple-system', 'sans-serif'],
       },
       keyframes: {
+        fadeIn: {
+          '0%': { opacity: '0' },
+          '100%': { opacity: '1' },
+        },
         pulseGlow: {
           '0%, 100%': { opacity: '0.8', filter: 'drop-shadow(0 0 15px currentColor)' },
           '50%': { opacity: '1', filter: 'drop-shadow(0 0 25px currentColor)' },
@@ -27,6 +31,7 @@ export default {
         },
       },
       animation: {
+        fadeIn: 'fadeIn 0.25s ease-out forwards',
         pulseGlow: 'pulseGlow 3s ease-in-out infinite',
       },
     },

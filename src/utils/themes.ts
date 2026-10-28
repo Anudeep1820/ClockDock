@@ -6,92 +6,141 @@ import {
   TypographyStyle,
   TypographyStyleId,
   ClockFaceId,
+  WorldClockCity,
 } from '../types';
 
-export const CLOCK_FACES: { id: ClockFaceId; name: string; subtitle: string }[] = [
+export const CLOCK_FACES: {
+  id: ClockFaceId;
+  name: string;
+  subtitle: string;
+  badge: string;
+}[] = [
   {
     id: 'standby-digital',
     name: 'StandBy Digital',
     subtitle: 'Dual-tone bold display inspired by iPhone StandBy',
+    badge: 'Classic',
   },
   {
     id: 'minimal-analog',
     name: 'Minimal Analog',
     subtitle: 'Bauhaus chronometer with continuous sweep seconds',
+    badge: 'Analog',
   },
   {
     id: 'retro-flip',
     name: 'Retro Flip',
     subtitle: 'Split-flap mechanical cards with 3D tactile depth',
+    badge: 'Vintage',
   },
   {
     id: 'ambient-glow',
     name: 'Ambient Glow',
     subtitle: 'Atmospheric luminescent typography for dark rooms',
+    badge: 'Atmosphere',
+  },
+  {
+    id: 'neon-cyber',
+    name: 'Neon Cyber',
+    subtitle: 'Futuristic glowing numerals with dual-layer neon borders',
+    badge: 'Cyber',
+  },
+  {
+    id: 'premium-editorial',
+    name: 'Premium Editorial',
+    subtitle: 'High-horology typography inspired by luxury watchmakers',
+    badge: 'Luxury',
+  },
+  {
+    id: 'aurora-digital',
+    name: 'Aurora Digital',
+    subtitle: 'Floating frosted-glass digits over atmospheric light',
+    badge: 'Modern',
+  },
+  {
+    id: 'modern-world',
+    name: 'Modern World Clock',
+    subtitle: 'Local time with secondary companion world clock',
+    badge: 'World',
+  },
+  {
+    id: 'matrix-minimal',
+    name: 'Matrix Minimal',
+    subtitle: 'Monospaced phosphor numerals with digital column indicators',
+    badge: 'Mono',
   },
 ];
 
 export const BACKGROUND_THEMES: BackgroundTheme[] = [
   {
     id: 'oled-black',
-    name: 'OLED Black',
-    className: 'bg-black',
-    style: { backgroundColor: '#000000' },
-    previewGradient: 'linear-gradient(135deg, #000000 0%, #0a0a0a 100%)',
+    name: 'OLED Pure Black',
+    description: 'Zero light emission, 100% distraction-free for bedside sleep',
+    previewGradient: 'linear-gradient(135deg, #000000 0%, #080808 100%)',
+    isAnimated: false,
   },
   {
-    id: 'midnight-blue',
-    name: 'Midnight Blue',
-    className: 'bg-gradient-to-b from-[#040814] via-[#081226] to-[#03060f]',
-    style: {
-      background: 'radial-gradient(ellipse at 50% 30%, #0d1e3d 0%, #050b18 60%, #02040a 100%)',
-    },
-    previewGradient: 'linear-gradient(135deg, #0d1e3d 0%, #050b18 100%)',
+    id: 'aurora-borealis',
+    name: 'Aurora Borealis',
+    description: 'Softly flowing northern-light ribbons with teal, green, and violet',
+    previewGradient: 'linear-gradient(135deg, #021a1a 0%, #0d3d38 50%, #15092a 100%)',
+    isAnimated: true,
   },
   {
-    id: 'deep-purple',
-    name: 'Deep Purple',
-    className: 'bg-gradient-to-b from-[#0e0417] via-[#1a082b] to-[#08020d]',
-    style: {
-      background: 'radial-gradient(ellipse at 50% 30%, #260c3e 0%, #12041d 60%, #07010a 100%)',
-    },
-    previewGradient: 'linear-gradient(135deg, #260c3e 0%, #0e0417 100%)',
+    id: 'liquid-gradient',
+    name: 'Liquid Gradient',
+    description: 'Smooth organic color mesh drifting continuously',
+    previewGradient: 'linear-gradient(135deg, #1b0a2a 0%, #0c1a30 50%, #2a0b1c 100%)',
+    isAnimated: true,
   },
   {
-    id: 'forest-green',
-    name: 'Forest Green',
-    className: 'bg-gradient-to-b from-[#031109] via-[#061e11] to-[#020904]',
-    style: {
-      background: 'radial-gradient(ellipse at 50% 30%, #092c19 0%, #05170d 60%, #020804 100%)',
-    },
-    previewGradient: 'linear-gradient(135deg, #092c19 0%, #031109 100%)',
+    id: 'cosmic-night',
+    name: 'Cosmic Night',
+    description: 'Gently twinkling stars against deep space indigo',
+    previewGradient: 'linear-gradient(135deg, #04040d 0%, #0a0b1a 50%, #060212 100%)',
+    isAnimated: true,
   },
   {
-    id: 'sunset-gradient',
-    name: 'Sunset Gradient',
-    className: 'bg-gradient-to-b from-[#1f091f] via-[#240b1a] to-[#0d0309]',
-    style: {
-      background: 'radial-gradient(ellipse at 50% 20%, #3a0d2e 0%, #1c0617 55%, #080207 100%)',
-    },
-    previewGradient: 'linear-gradient(135deg, #3a0d2e 0%, #160410 100%)',
+    id: 'ambient-particles',
+    name: 'Ambient Particles',
+    description: 'Floating luminous dust particles drifting slowly in 3D',
+    previewGradient: 'linear-gradient(135deg, #09090d 0%, #12121a 50%, #07070a 100%)',
+    isAnimated: true,
   },
   {
-    id: 'warm-ember',
-    name: 'Warm Ember',
-    className: 'bg-gradient-to-b from-[#1c0803] via-[#240d04] to-[#0a0301]',
-    style: {
-      background: 'radial-gradient(ellipse at 50% 25%, #381206 0%, #1a0803 55%, #080201 100%)',
-    },
-    previewGradient: 'linear-gradient(135deg, #381206 0%, #150502 100%)',
+    id: 'sunset-horizon',
+    name: 'Sunset Horizon',
+    description: 'Layered dusk twilight gradients in amber, coral, and violet',
+    previewGradient: 'linear-gradient(135deg, #2b0b18 0%, #3d1410 50%, #14051a 100%)',
+    isAnimated: true,
   },
   {
-    id: 'aurora',
-    name: 'Aurora',
-    className: 'bg-gradient-to-b from-[#031418] via-[#061f22] to-[#020b0d]',
-    style: {
-      background: 'radial-gradient(ellipse at 50% 25%, #082d32 0%, #04171a 55%, #010809 100%)',
-    },
-    previewGradient: 'linear-gradient(135deg, #082d32 0%, #031418 100%)',
+    id: 'deep-ocean',
+    name: 'Deep Ocean',
+    description: 'Flowing underwater abyssal caustics in cyan and navy blue',
+    previewGradient: 'linear-gradient(135deg, #020b17 0%, #061d36 50%, #01060f 100%)',
+    isAnimated: true,
+  },
+  {
+    id: 'midnight-nebula',
+    name: 'Midnight Nebula',
+    description: 'Atmospheric cosmic dust clouds with deep plum and violet depth',
+    previewGradient: 'linear-gradient(135deg, #13031f 0%, #260838 50%, #090110 100%)',
+    isAnimated: true,
+  },
+  {
+    id: 'soft-glow',
+    name: 'Soft Glow',
+    description: 'Restrained radial aura breathing behind the clock face',
+    previewGradient: 'radial-gradient(circle, #222230 0%, #09090c 80%)',
+    isAnimated: true,
+  },
+  {
+    id: 'custom-color',
+    name: 'Custom Solid Color',
+    description: 'Select your personal custom solid background hue',
+    previewGradient: 'linear-gradient(135deg, #181822 0%, #0e0e14 100%)',
+    isAnimated: false,
   },
 ];
 
@@ -158,38 +207,52 @@ export const TYPOGRAPHY_STYLES: TypographyStyle[] = [
   {
     id: 'modern',
     name: 'Modern Sans',
-    fontFamily: "'Outfit', -apple-system, BlinkMacSystemFont, sans-serif",
+    fontFamily: "'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
     className: 'font-modern',
     sample: '12:00',
   },
   {
     id: 'mono',
     name: 'Mono Geometry',
-    fontFamily: "'DM Mono', ui-monospace, monospace",
+    fontFamily: "'DM Mono', 'Space Mono', ui-monospace, SFMono-Regular, monospace",
     className: 'font-mono-geo',
     sample: '12:00',
   },
   {
     id: 'grotesk',
     name: 'Space Grotesk',
-    fontFamily: "'Space Grotesk', sans-serif",
+    fontFamily: "'Space Grotesk', -apple-system, sans-serif",
     className: 'font-grotesk',
     sample: '12:00',
   },
   {
     id: 'cyber',
     name: 'Futuristic Cyber',
-    fontFamily: "'Chakra Petch', sans-serif",
+    fontFamily: "'Chakra Petch', -apple-system, sans-serif",
     className: 'font-cyber',
     sample: '12:00',
   },
   {
     id: 'serif',
     name: 'Editorial Serif',
-    fontFamily: "'Playfair Display', Georgia, serif",
+    fontFamily: "'Playfair Display', Georgia, Cambria, 'Times New Roman', serif",
     className: 'font-serif-clock',
     sample: '12:00',
   },
+];
+
+export const WORLD_CITIES: WorldClockCity[] = [
+  { city: 'Tokyo', timezone: 'Asia/Tokyo', country: 'Japan' },
+  { city: 'London', timezone: 'Europe/London', country: 'United Kingdom' },
+  { city: 'New York', timezone: 'America/New_York', country: 'United States' },
+  { city: 'Paris', timezone: 'Europe/Paris', country: 'France' },
+  { city: 'Sydney', timezone: 'Australia/Sydney', country: 'Australia' },
+  { city: 'Dubai', timezone: 'Asia/Dubai', country: 'United Arab Emirates' },
+  { city: 'Singapore', timezone: 'Asia/Singapore', country: 'Singapore' },
+  { city: 'Los Angeles', timezone: 'America/Los_Angeles', country: 'United States' },
+  { city: 'Berlin', timezone: 'Europe/Berlin', country: 'Germany' },
+  { city: 'Hong Kong', timezone: 'Asia/Hong_Kong', country: 'Hong Kong' },
+  { city: 'UTC / GMT', timezone: 'UTC', country: 'Universal' },
 ];
 
 export function getTheme(id: BackgroundThemeId): BackgroundTheme {

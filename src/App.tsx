@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ClockFace, WidgetType, NightTint, AlarmItem } from './types';
+import { ClockFace, NightTint } from './types';
 import { PALETTES, NIGHT_TINTS } from './utils/themes';
 import { ClockBigBold } from './components/ClockBigBold';
 import { ClockRetroFlip } from './components/ClockRetroFlip';
@@ -7,11 +7,8 @@ import { ClockAnalog } from './components/ClockAnalog';
 import { ClockNeonSlice } from './components/ClockNeonSlice';
 import { ClockNightGlow } from './components/ClockNightGlow';
 import { DualWidgetStandby } from './components/DualWidgetStandby';
-import { DockHeaderControls } from './components/DockHeaderControls';
-import { NightModeOverlay } from './components/NightModeOverlay';
-import { WidgetPickerModal } from './components/WidgetPickerModal';
-import { AlarmModal } from './components/AlarmModal';
-import { soundEngine } from './utils/audio';
+import { UnifiedSettingsModal } from './components/UnifiedSettingsModal';
+import { Settings, Sparkles } from 'lucide-react';
 
 export const App: React.FC = () => {
   // Current Time State
@@ -28,22 +25,9 @@ export const App: React.FC = () => {
   const [dimLevel, setDimLevel] = useState(1.0);
   const [wakeLockActive, setWakeLockActive] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
-  // Audio Reactivity (bass pulse to animate clock digits with live device music)
-  const [bassPulse, setBassPulse] = useState(0);
-
-  // Dual Widget Slots
-  const [leftWidget, setLeftWidget] = useState<WidgetType>('clock-digital');
-  const [rightWidget, setRightWidget] = useState<WidgetType>('music');
-  const [pickerSlot, setPickerSlot] = useState<'left' | 'right' | null>(null);
-
-  // Alarms
-  const [isAlarmModalOpen, setIsAlarmModalOpen] = useState(false);
-  const [alarms, setAlarms] = useState<AlarmItem[]>([
-    { id: '1', time: '07:00', label: 'Sunrise Wakeup', enabled: true, days: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'] },
-  ]);
-
-  // Controls Visibility (Auto-hide on idle)
+  // Controls Visibility (Auto-fade on idle so screen is pure clean)
   const [controlsVisible, setControlsVisible] = useState(true);
   const idleTimeoutRef = useRef<number | null>(null);
   const wakeLockSentinel = useRef<unknown>(null);
@@ -51,25 +35,12 @@ export const App: React.FC = () => {
   // Live Clock Tick
   useEffect(() => {
     const timer = setInterval(() => {
-      const now = new Date();
-      setCurrentTime(now);
-
-      // Check alarms on the minute
-      if (now.getSeconds() === 0) {
-        const currentHHmm = `${now.getHours().toString().padStart(2, '0')}:${now
-          .getMinutes()
-          .toString()
-          .padStart(2, '0')}`;
-        const triggered = alarms.find((a) => a.enabled && a.time === currentHHmm);
-        if (triggered) {
-          soundEngine.playAlarmChime();
-        }
-      }
+      setCurrentTime(new Date());
     }, 1000);
     return () => clearInterval(timer);
-  }, [alarms]);
+  }, []);
 
-  // Activity / Idle Detector for Bedside immersion
+  // Auto-hide controls for pure clean bedside view
   const handleUserActivity = () => {
     setControlsVisible(true);
     if (idleTimeoutRef.current) {
@@ -77,7 +48,7 @@ export const App: React.FC = () => {
     }
     idleTimeoutRef.current = window.setTimeout(() => {
       setControlsVisible(false);
-    }, 4000);
+    }, 3500);
   };
 
   useEffect(() => {
@@ -87,7 +58,7 @@ export const App: React.FC = () => {
 
     idleTimeoutRef.current = window.setTimeout(() => {
       setControlsVisible(false);
-    }, 4500);
+    }, 3500);
 
     return () => {
       window.removeEventListener('mousemove', handleUserActivity);
@@ -102,11 +73,10 @@ export const App: React.FC = () => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
 
-      if (e.key === 'n' || e.key === 'N') {
-        setNightMode((prev) => !prev);
-      } else if (e.key === 'f' || e.key === 'F') {
-        toggleFullscreen();
-      } else if (e.key === '1') setCurrentFace('standby-dual');
+      if (e.key === 'n' || e.key === 'N') setNightMode((prev) => !prev);
+      else if (e.key === 'f' || e.key === 'F') toggleFullscreen();
+      else if (e.key === 's' || e.key === 'S') setIsSettingsOpen((prev) => !prev);
+      else if (e.key === '1') setCurrentFace('standby-dual');
       else if (e.key === '2') setCurrentFace('big-bold');
       else if (e.key === '3') setCurrentFace('retro-flip');
       else if (e.key === '4') setCurrentFace('minimal-analog');
@@ -117,7 +87,7 @@ export const App: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Screen Wake Lock API
+  // Screen Wake Lock API (keeps screen awake while on dock)
   const toggleWakeLock = async () => {
     if ('wakeLock' in navigator) {
       if (wakeLockActive && wakeLockSentinel.current) {
@@ -161,51 +131,54 @@ export const App: React.FC = () => {
     setPaletteIndex((prev) => (prev + 1) % PALETTES.length);
   };
 
-  const handleSwapWidgets = () => {
-    const temp = leftWidget;
-    setLeftWidget(rightWidget);
-    setRightWidget(temp);
-  };
-
   return (
     <div
-      className="relative w-screen h-screen overflow-hidden bg-black select-none flex flex-col justify-between"
+      className="relative w-screen h-[100dvh] overflow-hidden bg-black select-none flex flex-col justify-center items-center m-0 p-0"
       style={{
         filter: `brightness(${dimLevel})`,
         transition: 'filter 0.3s ease',
       }}
     >
-      {/* Top Header Dock Controls */}
-      <DockHeaderControls
-        currentFace={currentFace}
-        onChangeFace={setCurrentFace}
-        is24Hour={is24Hour}
-        onToggle24Hour={() => setIs24Hour((p) => !p)}
-        isFullscreen={isFullscreen}
-        onToggleFullscreen={toggleFullscreen}
-        wakeLockActive={wakeLockActive}
-        onToggleWakeLock={toggleWakeLock}
-        onOpenAlarms={() => setIsAlarmModalOpen(true)}
-        nightMode={nightMode}
-        nightHex={activeTintHex}
-        visible={controlsVisible}
-      />
+      {/* SINGLE SUBTLE CORNER SETTINGS BUTTON (Fades out when inactive for 100% clean screen) */}
+      <div
+        className={`fixed top-3 right-3 sm:top-5 sm:right-5 z-40 transition-all duration-700 ${
+          controlsVisible ? 'opacity-100' : 'opacity-20 hover:opacity-100'
+        }`}
+      >
+        <button
+          onClick={() => setIsSettingsOpen(true)}
+          className="p-2 sm:p-2.5 rounded-full bg-zinc-900/70 border border-zinc-800/80 backdrop-blur-xl text-zinc-300 hover:text-white hover:scale-105 active:scale-95 transition-all shadow-xl"
+          title="Open Settings"
+        >
+          <Settings className="w-5 h-5" />
+        </button>
+      </div>
 
-      {/* Main Clock Stage */}
-      <main className="relative flex-1 w-full h-full flex items-center justify-center">
+      {/* Subtle Palette Quick-Switcher (Bottom right corner hint) */}
+      <div
+        className={`fixed bottom-3 right-3 sm:bottom-5 sm:right-5 z-40 transition-all duration-700 ${
+          controlsVisible ? 'opacity-100' : 'opacity-0'
+        }`}
+      >
+        <button
+          onClick={cyclePalette}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-zinc-900/60 border border-zinc-800/80 backdrop-blur-xl text-xs font-semibold text-zinc-400 hover:text-white transition-all"
+          title="Switch Color Theme"
+        >
+          <Sparkles className="w-3.5 h-3.5 text-pink-400" />
+          <span className="hidden sm:inline">Theme</span>
+        </button>
+      </div>
+
+      {/* MAIN CLOCK & MUSIC STAGE (Auto-scales to any phone screen in Portrait or Landscape) */}
+      <main className="w-full h-full flex items-center justify-center overflow-hidden">
         {currentFace === 'standby-dual' && (
           <DualWidgetStandby
             time={currentTime}
             palette={currentPalette}
-            leftWidget={leftWidget}
-            rightWidget={rightWidget}
             nightMode={nightMode}
             nightHex={activeTintHex}
             is24Hour={is24Hour}
-            bassPulse={bassPulse}
-            onAudioBeat={setBassPulse}
-            onOpenWidgetPicker={(slot) => setPickerSlot(slot)}
-            onSwapWidgets={handleSwapWidgets}
           />
         )}
 
@@ -216,7 +189,6 @@ export const App: React.FC = () => {
             is24Hour={is24Hour}
             nightMode={nightMode}
             nightHex={activeTintHex}
-            bassPulse={bassPulse}
             onCyclePalette={cyclePalette}
           />
         )}
@@ -257,53 +229,24 @@ export const App: React.FC = () => {
         )}
       </main>
 
-      {/* Bottom Floating Bar: Night Mode & Tint dots (Auto-hides on idle) */}
-      <footer
-        className={`fixed bottom-4 sm:bottom-6 left-0 right-0 z-40 flex justify-center pointer-events-none transition-all duration-500 ${
-          controlsVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'
-        }`}
-      >
-        <div className="pointer-events-auto">
-          <NightModeOverlay
-            nightMode={nightMode}
-            activeTint={activeTint}
-            onSelectTint={setActiveTint}
-            onToggleNightMode={() => setNightMode((p) => !p)}
-            dimLevel={dimLevel}
-            onChangeDim={setDimLevel}
-          />
-        </div>
-      </footer>
-
-      {/* Widget Picker Modal */}
-      <WidgetPickerModal
-        isOpen={pickerSlot !== null}
-        activeSlot={pickerSlot}
-        currentLeft={leftWidget}
-        currentRight={rightWidget}
-        onSelectWidget={(slot, type) => {
-          if (slot === 'left') setLeftWidget(type);
-          else setRightWidget(type);
-        }}
-        onClose={() => setPickerSlot(null)}
+      {/* SINGLE UNIFIED SETTINGS MODAL */}
+      <UnifiedSettingsModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        currentFace={currentFace}
+        onChangeFace={setCurrentFace}
         nightMode={nightMode}
-        nightHex={activeTintHex}
-      />
-
-      {/* Alarms Modal */}
-      <AlarmModal
-        isOpen={isAlarmModalOpen}
-        onClose={() => setIsAlarmModalOpen(false)}
-        alarms={alarms}
-        onToggleAlarm={(id) =>
-          setAlarms((prev) =>
-            prev.map((a) => (a.id === id ? { ...a, enabled: !a.enabled } : a))
-          )
-        }
-        onAddAlarm={(newAlarm) => setAlarms((prev) => [newAlarm, ...prev])}
-        onDeleteAlarm={(id) => setAlarms((prev) => prev.filter((a) => a.id !== id))}
-        nightMode={nightMode}
-        nightHex={activeTintHex}
+        onToggleNightMode={() => setNightMode((p) => !p)}
+        activeTint={activeTint}
+        onSelectTint={setActiveTint}
+        dimLevel={dimLevel}
+        onChangeDim={setDimLevel}
+        is24Hour={is24Hour}
+        onToggle24Hour={() => setIs24Hour((p) => !p)}
+        isFullscreen={isFullscreen}
+        onToggleFullscreen={toggleFullscreen}
+        wakeLockActive={wakeLockActive}
+        onToggleWakeLock={toggleWakeLock}
       />
     </div>
   );

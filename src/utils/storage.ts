@@ -1,4 +1,4 @@
-import { ClockSettings, UserPreset, AlarmItem, TimerState, StopwatchState } from '../types';
+import { ClockSettings, UserPreset, AlarmItem, TimerState, StopwatchState, WeatherData } from '../types';
 
 export const BUILT_IN_PRESETS: UserPreset[] = [
   {
@@ -148,6 +148,14 @@ export const DEFAULT_SETTINGS: ClockSettings = {
   sleepMinimalDate: true,
   sleepDisableAnimations: true,
   sleepGlowStrength: 'off',
+
+  // Weather Defaults (Phase 4)
+  showWeather: true,
+  weatherUnit: 'celsius',
+  weatherCity: 'New York',
+  weatherLatitude: 40.7128,
+  weatherLongitude: -74.0060,
+  weatherUseGeolocation: false,
 };
 
 const STORAGE_KEY = 'clockdock_v3_settings';
@@ -201,6 +209,24 @@ export function loadSettings(): ClockSettings {
         ? parsed.nightModeMinimalDate
         : DEFAULT_SETTINGS.sleepMinimalDate;
 
+    const showWeather =
+      parsed.showWeather !== undefined ? Boolean(parsed.showWeather) : DEFAULT_SETTINGS.showWeather;
+    const weatherUnit =
+      parsed.weatherUnit === 'fahrenheit' ? 'fahrenheit' : 'celsius';
+    const weatherCity =
+      typeof parsed.weatherCity === 'string' && parsed.weatherCity.trim()
+        ? parsed.weatherCity
+        : DEFAULT_SETTINGS.weatherCity;
+    const weatherLatitude =
+      typeof parsed.weatherLatitude === 'number' && !isNaN(parsed.weatherLatitude)
+        ? parsed.weatherLatitude
+        : DEFAULT_SETTINGS.weatherLatitude;
+    const weatherLongitude =
+      typeof parsed.weatherLongitude === 'number' && !isNaN(parsed.weatherLongitude)
+        ? parsed.weatherLongitude
+        : DEFAULT_SETTINGS.weatherLongitude;
+    const weatherUseGeolocation = Boolean(parsed.weatherUseGeolocation);
+
     return {
       ...DEFAULT_SETTINGS,
       ...parsed,
@@ -212,6 +238,12 @@ export function loadSettings(): ClockSettings {
       sleepDimmer,
       sleepHideSeconds,
       sleepMinimalDate,
+      showWeather,
+      weatherUnit,
+      weatherCity,
+      weatherLatitude,
+      weatherLongitude,
+      weatherUseGeolocation,
     };
   } catch (err) {
     console.warn('Failed to load ClockDock settings from localStorage:', err);
@@ -637,5 +669,60 @@ export function saveStopwatchState(stopwatch: StopwatchState) {
     localStorage.setItem(STOPWATCH_STORAGE_KEY, JSON.stringify(stopwatch));
   } catch (err) {
     console.warn('ClockDock: failed to persist stopwatch', err);
+  }
+}
+
+// --------------------------------------------------------------------------
+// Phase 4: Weather Cache Persistence (Dedicated Independent Storage)
+// --------------------------------------------------------------------------
+
+const WEATHER_CACHE_KEY = 'clockdock_weather_cache_v1';
+
+export function loadWeatherCache(): WeatherData | null {
+  if (typeof window === 'undefined') return null;
+
+  try {
+    const raw = localStorage.getItem(WEATHER_CACHE_KEY);
+    if (!raw) return null;
+
+    const parsed = JSON.parse(raw);
+    if (
+      parsed &&
+      typeof parsed === 'object' &&
+      typeof parsed.temperatureCelsius === 'number' &&
+      typeof parsed.condition === 'string' &&
+      typeof parsed.conditionCode === 'string' &&
+      typeof parsed.locationName === 'string' &&
+      typeof parsed.fetchedAt === 'number'
+    ) {
+      const now = Date.now();
+      const isStale = now - parsed.fetchedAt > 30 * 60 * 1000; // >30m considered stale
+
+      return {
+        temperatureCelsius: parsed.temperatureCelsius,
+        condition: parsed.condition,
+        conditionCode: parsed.conditionCode,
+        tempHighCelsius:
+          typeof parsed.tempHighCelsius === 'number' ? parsed.tempHighCelsius : undefined,
+        tempLowCelsius:
+          typeof parsed.tempLowCelsius === 'number' ? parsed.tempLowCelsius : undefined,
+        locationName: parsed.locationName,
+        fetchedAt: parsed.fetchedAt,
+        isStale,
+      };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+export function saveWeatherCache(weather: WeatherData): void {
+  if (typeof window === 'undefined') return;
+
+  try {
+    localStorage.setItem(WEATHER_CACHE_KEY, JSON.stringify(weather));
+  } catch (err) {
+    console.warn('ClockDock: failed to persist weather cache', err);
   }
 }

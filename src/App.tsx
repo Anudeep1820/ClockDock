@@ -6,6 +6,7 @@ import {
   TimerState,
   StopwatchState,
   ActiveAlert,
+  WeatherData,
 } from './types';
 import {
   loadSettings,
@@ -19,6 +20,7 @@ import {
   saveTimerState,
   loadStopwatchState,
   saveStopwatchState,
+  loadWeatherCache,
 } from './utils/storage';
 import {
   getColor,
@@ -29,6 +31,7 @@ import {
 import { evaluateAlarms } from './utils/alarms';
 import { soundEngine } from './utils/audio';
 import { sendLocalNotification } from './utils/notifications';
+import { fetchWeather } from './utils/weather';
 import { StandByDigital } from './components/faces/StandByDigital';
 import { MinimalAnalog } from './components/faces/MinimalAnalog';
 import { RetroFlip } from './components/faces/RetroFlip';
@@ -42,6 +45,7 @@ import { BackgroundStudio } from './components/BackgroundStudio';
 import { SettingsSheet } from './components/SettingsSheet';
 import { TimeToolsModal } from './components/tools/TimeToolsModal';
 import { ActiveAlertModal } from './components/tools/ActiveAlertModal';
+import { WeatherWidget } from './components/WeatherWidget';
 import { Settings, Maximize2, Minimize2, Zap, RotateCw, Moon, Bell } from 'lucide-react';
 
 const ALL_FACES: ClockFaceId[] = [
@@ -69,6 +73,12 @@ export const App: React.FC = () => {
   const [timer, setTimer] = useState<TimerState>(() => loadTimerState());
   const [stopwatch, setStopwatch] = useState<StopwatchState>(() => loadStopwatchState());
   const [activeAlert, setActiveAlert] = useState<ActiveAlert | null>(null);
+
+  // --------------------------------------------------------------------------
+  // Phase 4: Weather State (Open-Meteo Integration with Offline Caching)
+  // --------------------------------------------------------------------------
+  const [weather, setWeather] = useState<WeatherData | null>(() => loadWeatherCache());
+  const [isWeatherLoading, setIsWeatherLoading] = useState(false);
 
   // 2. High-precision live time
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
@@ -141,6 +151,49 @@ export const App: React.FC = () => {
     setActiveAlert(null);
   }, [activeAlert, alarms, handleSaveAlarms, showToast]);
 
+  // Phase 4: Weather Refresh Handler
+  const refreshWeather = useCallback(
+    async (force = false) => {
+      if (!settings.showWeather) return;
+      setIsWeatherLoading(true);
+      const res = await fetchWeather(
+        settings.weatherLatitude,
+        settings.weatherLongitude,
+        settings.weatherCity,
+        force
+      );
+      if (res) {
+        setWeather(res);
+        if (force) showToast(`Weather updated for ${settings.weatherCity}`);
+      } else if (force) {
+        showToast('Weather currently unavailable offline');
+      }
+      setIsWeatherLoading(false);
+    },
+    [
+      settings.showWeather,
+      settings.weatherLatitude,
+      settings.weatherLongitude,
+      settings.weatherCity,
+      showToast,
+    ]
+  );
+
+  // Weather Periodic & Mount Background Poller (every 30 minutes)
+  useEffect(() => {
+    if (settings.showWeather) {
+      refreshWeather(false);
+      const interval = window.setInterval(() => refreshWeather(false), 30 * 60 * 1000);
+      return () => clearInterval(interval);
+    }
+  }, [
+    settings.showWeather,
+    settings.weatherLatitude,
+    settings.weatherLongitude,
+    settings.weatherCity,
+    refreshWeather,
+  ]);
+
   // Update and persist settings
   const handleUpdateSettings = useCallback((partial: Partial<ClockSettings>) => {
     setSettings((prev) => {
@@ -172,6 +225,11 @@ export const App: React.FC = () => {
       if (document.visibilityState === 'visible') {
         const now = new Date();
         setCurrentTime(now);
+
+        // Re-evaluate weather if enabled
+        if (settings.showWeather) {
+          refreshWeather(false);
+        }
 
         // Immediate Alarm check after returning from background/suspension
         const { triggeringAlarms, missedAlarms, updatedAlarms } = evaluateAlarms(alarms, now);
@@ -215,7 +273,7 @@ export const App: React.FC = () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current);
     };
-  }, [wakeLockActive, alarms, activeAlert, handleSaveAlarms, showToast]);
+  }, [wakeLockActive, alarms, activeAlert, handleSaveAlarms, showToast, settings.showWeather, refreshWeather]);
 
   // --------------------------------------------------------------------------
   // Countdown Timer Background Accuracy Engine
@@ -618,6 +676,18 @@ export const App: React.FC = () => {
           </div>
         )}
 
+        {/* PHASE 4: OPTIONAL BEDSIDE WEATHER WIDGET */}
+        {settings.showWeather && weather && (
+          <WeatherWidget
+            weather={weather}
+            unit={settings.weatherUnit}
+            clockColor={effectiveColor}
+            visible={controlsVisible}
+            onRefresh={() => refreshWeather(true)}
+            isLoading={isWeatherLoading}
+          />
+        )}
+
         {/* SMART DOCK CORNER CONTROLS (Fade out on idle, stay visible on interaction) */}
         <div
           onMouseEnter={() => {
@@ -923,6 +993,8 @@ export const App: React.FC = () => {
         onToggleSleepManual={handleToggleSleepManual}
         currentTime={currentTime}
         onShowToast={showToast}
+        weather={weather}
+        onRefreshWeather={() => refreshWeather(true)}
       />
 
       {/* PHASE 3: TIME TOOLS MODAL (Alarms, Countdown Timer, Stopwatch) */}

@@ -32,6 +32,16 @@ import {
   downloadPresetsAsJson,
 } from '../utils/presets';
 import {
+  POPULAR_WEATHER_CITIES,
+  searchCities,
+  getCurrentDevicePosition,
+  formatTemperature,
+} from '../utils/weather';
+import {
+  WeatherData,
+  GeocodingResult,
+} from '../types';
+import {
   X,
   SunMedium,
   RotateCw,
@@ -65,6 +75,10 @@ import {
   AlignJustify,
   FileText,
   AlertTriangle,
+  CloudSun,
+  Navigation,
+  Search,
+  RefreshCw,
 } from 'lucide-react';
 
 interface SettingsSheetProps {
@@ -79,9 +93,11 @@ interface SettingsSheetProps {
   onToggleSleepManual: () => void;
   currentTime: Date;
   onShowToast: (msg: string) => void;
+  weather?: WeatherData | null;
+  onRefreshWeather?: () => void;
 }
 
-type SettingsTab = 'studio' | 'wallpaper' | 'sleep' | 'presets' | 'dock';
+type SettingsTab = 'studio' | 'wallpaper' | 'sleep' | 'presets' | 'dock' | 'weather';
 
 export const SettingsSheet: React.FC<SettingsSheetProps> = ({
   isOpen,
@@ -95,6 +111,8 @@ export const SettingsSheet: React.FC<SettingsSheetProps> = ({
   onToggleSleepManual,
   currentTime,
   onShowToast,
+  weather,
+  onRefreshWeather,
 }) => {
   const [activeTab, setActiveTab] = useState<SettingsTab>('studio');
 
@@ -124,6 +142,54 @@ export const SettingsSheet: React.FC<SettingsSheetProps> = ({
 
   // Live Sleep Preview visibility toggle
   const [isPreviewingSleep, setIsPreviewingSleep] = useState(false);
+
+  // Phase 4: Weather Settings State
+  const [citySearchInput, setCitySearchInput] = useState('');
+  const [citySearchResults, setCitySearchResults] = useState<GeocodingResult[]>([]);
+  const [isSearchingCities, setIsSearchingCities] = useState(false);
+  const [isLocatingDevice, setIsLocatingDevice] = useState(false);
+
+  const handleCitySearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!citySearchInput.trim()) return;
+    setIsSearchingCities(true);
+    const results = await searchCities(citySearchInput.trim());
+    setCitySearchResults(results);
+    setIsSearchingCities(false);
+    if (results.length === 0) {
+      onShowToast('No matching locations found');
+    }
+  };
+
+  const handleSelectGeocodingResult = (result: GeocodingResult) => {
+    const displayName = result.country ? `${result.name}, ${result.country}` : result.name;
+    onUpdate({
+      weatherCity: displayName,
+      weatherLatitude: result.latitude,
+      weatherLongitude: result.longitude,
+      weatherUseGeolocation: false,
+    });
+    setCitySearchResults([]);
+    setCitySearchInput('');
+    onShowToast(`Location set to ${displayName}`);
+  };
+
+  const handleDetectDeviceLocation = async () => {
+    setIsLocatingDevice(true);
+    const pos = await getCurrentDevicePosition();
+    setIsLocatingDevice(false);
+    if (pos) {
+      onUpdate({
+        weatherCity: 'Current Location',
+        weatherLatitude: pos.latitude,
+        weatherLongitude: pos.longitude,
+        weatherUseGeolocation: true,
+      });
+      onShowToast('Updated to device coordinates');
+    } else {
+      onShowToast('Location permission denied or unavailable');
+    }
+  };
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -417,13 +483,14 @@ export const SettingsSheet: React.FC<SettingsSheetProps> = ({
         </div>
 
         {/* Tab Navigation Navigation Pill Bar */}
-        <div className="grid grid-cols-5 gap-1 p-1 bg-black/50 border border-white/10 rounded-2xl">
+        <div className="grid grid-cols-3 sm:grid-cols-6 gap-1 p-1 bg-black/50 border border-white/10 rounded-2xl">
           {[
             { id: 'studio', label: 'Design Studio', icon: SlidersHorizontal },
             { id: 'wallpaper', label: 'Wallpaper', icon: Sparkles },
             { id: 'sleep', label: 'Sleep Mode', icon: Moon },
             { id: 'presets', label: 'Presets', icon: Bookmark },
             { id: 'dock', label: 'Smart Dock', icon: Sliders },
+            { id: 'weather', label: 'Weather', icon: CloudSun },
           ].map((tab) => {
             const Icon = tab.icon;
             const isTabActive = activeTab === tab.id;
@@ -1804,6 +1871,252 @@ export const SettingsSheet: React.FC<SettingsSheetProps> = ({
                 <li><strong className="text-zinc-300">Face Switching:</strong> Horizontal swipe on screen, Arrow keys, or 1–9</li>
                 <li><strong className="text-zinc-300">Safe Area Handling:</strong> Screen adapts automatically around notches & home bars</li>
               </ul>
+            </div>
+          </div>
+        )}
+
+        {/* ============================================================ */}
+        {/* TAB 6: WEATHER WIDGET (PHASE 4)                              */}
+        {/* ============================================================ */}
+        {activeTab === 'weather' && (
+          <div className="flex flex-col gap-5 animate-fadeIn">
+            {/* Header info card */}
+            <div className="p-4 rounded-2xl bg-zinc-900/60 border border-white/15 flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-sky-400 font-bold text-sm">
+                  <CloudSun className="w-4 h-4" />
+                  <span>Bedside Weather Complication</span>
+                </div>
+                {/* Weather Enable/Disable Toggle */}
+                <button
+                  type="button"
+                  onClick={() => onUpdate({ showWeather: !settings.showWeather })}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                    settings.showWeather ? 'bg-white' : 'bg-white/20'
+                  }`}
+                  aria-label="Toggle Weather Widget"
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-black transition-transform ${
+                      settings.showWeather ? 'translate-x-6' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+              </div>
+              <p className="text-xs text-zinc-400 leading-relaxed">
+                Display a subtle, frosted glass weather pill in the corner of your bedside clock. Powered by Open-Meteo with 100% offline caching and zero tracking.
+              </p>
+            </div>
+
+            {/* Current Weather Status & Live Cache Card */}
+            {weather ? (
+              <div className="p-4 rounded-2xl bg-white/[0.04] border border-white/10 flex items-center justify-between">
+                <div>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-2xl font-bold font-mono text-white">
+                      {formatTemperature(weather.temperatureCelsius, settings.weatherUnit)}
+                    </span>
+                    <span className="text-sm font-semibold text-zinc-300">
+                      {weather.condition}
+                    </span>
+                    {weather.isStale && (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                        Cached Offline
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-xs text-zinc-400 block mt-0.5">
+                    {weather.locationName}{' '}
+                    {weather.tempHighCelsius !== undefined && weather.tempLowCelsius !== undefined
+                      ? `• High: ${formatTemperature(weather.tempHighCelsius, settings.weatherUnit)} / Low: ${formatTemperature(weather.tempLowCelsius, settings.weatherUnit)}`
+                      : ''}
+                  </span>
+                  <span className="text-[10px] text-zinc-500 block mt-1">
+                    Updated {new Date(weather.fetchedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+                  </span>
+                </div>
+
+                {onRefreshWeather && (
+                  <button
+                    onClick={onRefreshWeather}
+                    className="p-2.5 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-white transition-all flex items-center gap-1.5 text-xs font-semibold"
+                    title="Fetch latest weather"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">Refresh</span>
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 text-center">
+                <p className="text-xs text-zinc-500">
+                  No weather data cached yet. Ensure you are online and select a city below.
+                </p>
+              </div>
+            )}
+
+            {/* Temperature Unit Segmented Control */}
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-semibold text-zinc-300 uppercase tracking-wider">
+                Temperature Unit
+              </label>
+              <div className="grid grid-cols-2 gap-2 p-1 bg-black/40 border border-white/10 rounded-xl">
+                <button
+                  type="button"
+                  onClick={() => onUpdate({ weatherUnit: 'celsius' })}
+                  className={`py-2 rounded-lg text-xs font-bold transition-all ${
+                    settings.weatherUnit === 'celsius'
+                      ? 'bg-white text-black shadow-md'
+                      : 'text-zinc-400 hover:text-white'
+                  }`}
+                >
+                  Celsius (°C)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onUpdate({ weatherUnit: 'fahrenheit' })}
+                  className={`py-2 rounded-lg text-xs font-bold transition-all ${
+                    settings.weatherUnit === 'fahrenheit'
+                      ? 'bg-white text-black shadow-md'
+                      : 'text-zinc-400 hover:text-white'
+                  }`}
+                >
+                  Fahrenheit (°F)
+                </button>
+              </div>
+            </div>
+
+            {/* Geolocation Button */}
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-semibold text-zinc-300 uppercase tracking-wider">
+                Automatic Location
+              </label>
+              <button
+                type="button"
+                onClick={handleDetectDeviceLocation}
+                disabled={isLocatingDevice}
+                className={`w-full py-2.5 px-4 rounded-xl border border-white/10 text-xs font-semibold flex items-center justify-center gap-2 transition-all ${
+                  settings.weatherUseGeolocation
+                    ? 'bg-sky-500/15 border-sky-400/40 text-sky-300'
+                    : 'bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-white'
+                }`}
+              >
+                <Navigation className={`w-3.5 h-3.5 ${isLocatingDevice ? 'animate-spin' : ''}`} />
+                <span>
+                  {isLocatingDevice
+                    ? 'Requesting device coordinates...'
+                    : settings.weatherUseGeolocation
+                    ? 'Using Device Coordinates (Active)'
+                    : 'Use Device GPS Location (Click to enable)'}
+                </span>
+              </button>
+              <p className="text-[10px] text-zinc-500">
+                Location permission is only requested when you click this button. ClockDock never tracks you in the background.
+              </p>
+            </div>
+
+            {/* Manual City Search */}
+            <div className="flex flex-col gap-2">
+              <label className="text-xs font-semibold text-zinc-300 uppercase tracking-wider">
+                Search Any City
+              </label>
+              <form onSubmit={handleCitySearch} className="flex gap-2">
+                <div className="relative flex-1">
+                  <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
+                  <input
+                    type="text"
+                    value={citySearchInput}
+                    onChange={(e) => setCitySearchInput(e.target.value)}
+                    placeholder="Search city (e.g. San Francisco, Berlin, Tokyo)..."
+                    className="w-full pl-9 pr-3 py-2 rounded-xl border border-white/10 bg-black/50 text-white text-xs focus:outline-none focus:border-white/30"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={isSearchingCities || !citySearchInput.trim()}
+                  className="px-4 py-2 rounded-xl bg-white text-black text-xs font-bold hover:bg-zinc-200 transition-all disabled:opacity-40"
+                >
+                  {isSearchingCities ? 'Searching...' : 'Search'}
+                </button>
+              </form>
+
+              {/* Search Results Dropdown */}
+              {citySearchResults.length > 0 && (
+                <div className="p-2 rounded-xl bg-zinc-900 border border-white/15 space-y-1 animate-fadeIn">
+                  <span className="text-[10px] font-bold text-zinc-400 px-2 uppercase tracking-wider block">
+                    Matching Locations
+                  </span>
+                  {citySearchResults.map((res, i) => (
+                    <button
+                      key={`${res.name}-${res.latitude}-${i}`}
+                      type="button"
+                      onClick={() => handleSelectGeocodingResult(res)}
+                      className="w-full text-left px-3 py-1.5 rounded-lg text-xs text-zinc-200 hover:bg-white/10 hover:text-white flex items-center justify-between"
+                    >
+                      <span className="font-semibold">{res.name}</span>
+                      <span className="text-[10px] text-zinc-400">
+                        {res.admin1 ? `${res.admin1}, ` : ''}{res.country || ''}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Popular Bedside Cities Grid */}
+            <div className="flex flex-col gap-2">
+              <label className="text-xs font-semibold text-zinc-300 uppercase tracking-wider">
+                Popular Cities
+              </label>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                {POPULAR_WEATHER_CITIES.map((c) => {
+                  const isSelected =
+                    !settings.weatherUseGeolocation &&
+                    (settings.weatherCity.toLowerCase().includes(c.name.toLowerCase()) ||
+                      (Math.abs(settings.weatherLatitude - c.latitude) < 0.1 &&
+                        Math.abs(settings.weatherLongitude - c.longitude) < 0.1));
+
+                  return (
+                    <button
+                      key={c.name}
+                      type="button"
+                      onClick={() => {
+                        onUpdate({
+                          weatherCity: c.name,
+                          weatherLatitude: c.latitude,
+                          weatherLongitude: c.longitude,
+                          weatherUseGeolocation: false,
+                        });
+                        onShowToast(`Location set to ${c.name}`);
+                      }}
+                      className={`p-2 rounded-xl border text-left text-xs transition-all ${
+                        isSelected
+                          ? 'border-white bg-white text-black font-bold shadow-md'
+                          : 'border-white/10 bg-white/5 text-zinc-300 hover:text-white hover:bg-white/10 font-medium'
+                      }`}
+                    >
+                      <div className="truncate">{c.name}</div>
+                      <div className={`text-[10px] truncate ${isSelected ? 'text-zinc-600' : 'text-zinc-500'}`}>
+                        {c.country}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Open-Meteo Attribution & Privacy Note */}
+            <div className="p-3 rounded-xl bg-black/40 border border-white/5 text-[11px] text-zinc-400 leading-relaxed">
+              <strong className="text-zinc-300">Privacy & Data Attribution:</strong> Weather data is provided by{' '}
+              <a
+                href="https://open-meteo.com/"
+                target="_blank"
+                rel="noreferrer"
+                className="text-sky-400 underline hover:text-sky-300"
+              >
+                Open-Meteo
+              </a>{' '}
+              under CC BY 4.0 license. No private API keys or personal identifiers are transmitted. Forecasts are cached locally so ClockDock continues to operate reliably while offline.
             </div>
           </div>
         )}

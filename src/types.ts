@@ -173,6 +173,14 @@ export interface ClockSettings {
   nightModeSuppressSeconds?: boolean;
   nightModeMinimalDate?: boolean;
   nightModeManual?: boolean | null;
+
+  // Phase 4: Weather Widget Settings
+  showWeather: boolean;
+  weatherUnit: 'celsius' | 'fahrenheit';
+  weatherCity: string;
+  weatherLatitude: number;
+  weatherLongitude: number;
+  weatherUseGeolocation: boolean;
 }
 
 // --------------------------------------------------------------------------
@@ -218,4 +226,38 @@ export interface ActiveAlert {
   subtitle?: string;
   timestamp: number;
   alarmItem?: AlarmItem;
+}
+
+// --------------------------------------------------------------------------
+// Phase 4: Weather Integration
+// --------------------------------------------------------------------------
+
+export type WeatherConditionCode =
+  | 'clear'
+  | 'partly-cloudy'
+  | 'cloudy'
+  | 'fog'
+  | 'drizzle'
+  | 'rain'
+  | 'heavy-rain'
+  | 'snow'
+  | 'thunderstorm';
+
+export interface WeatherData {
+  temperatureCelsius: number;
+  condition: string;
+  conditionCode: WeatherConditionCode;
+  tempHighCelsius?: number;
+  tempLowCelsius?: number;
+  locationName: string;
+  fetchedAt: number; // Epoch ms
+  isStale?: boolean;
+}
+
+export interface GeocodingResult {
+  name: string;
+  country?: string;
+  admin1?: string;
+  latitude: number;
+  longitude: number;
 }

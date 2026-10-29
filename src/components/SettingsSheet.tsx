@@ -7,7 +7,9 @@ import {
   NumeralSize,
   GlowStrength,
   ClockColorId,
+  BackgroundThemeId,
   UserPreset,
+  SleepScheduleMode,
 } from '../types';
 import {
   BACKGROUND_THEMES,
@@ -15,11 +17,11 @@ import {
   TYPOGRAPHY_STYLES,
   CLOCK_FACES,
   WORLD_CITIES,
+  getColor,
 } from '../utils/themes';
 import {
   loadUserPresets,
   saveUserPresets,
-  isNightScheduleActive,
 } from '../utils/storage';
 import {
   X,
@@ -43,9 +45,9 @@ import {
   Trash2,
   Edit2,
   Plus,
-  Maximize2,
   Info,
-  ShieldAlert,
+  CalendarRange,
+  Eye,
 } from 'lucide-react';
 
 interface SettingsSheetProps {
@@ -54,11 +56,14 @@ interface SettingsSheetProps {
   settings: ClockSettings;
   onUpdate: (partial: Partial<ClockSettings>) => void;
   onReset: () => void;
-  isNightModeActive: boolean;
-  onToggleNightManual: () => void;
+  isSleepModeActive: boolean;
+  isOverrideActive: boolean;
+  nextTransition: Date | null;
+  onToggleSleepManual: () => void;
+  currentTime: Date;
 }
 
-type SettingsTab = 'faces' | 'wallpaper' | 'night' | 'presets' | 'display';
+type SettingsTab = 'faces' | 'wallpaper' | 'sleep' | 'presets' | 'display';
 
 export const SettingsSheet: React.FC<SettingsSheetProps> = ({
   isOpen,
@@ -66,8 +71,11 @@ export const SettingsSheet: React.FC<SettingsSheetProps> = ({
   settings,
   onUpdate,
   onReset,
-  isNightModeActive,
-  onToggleNightManual,
+  isSleepModeActive,
+  isOverrideActive,
+  nextTransition,
+  onToggleSleepManual,
+  currentTime,
 }) => {
   const [activeTab, setActiveTab] = useState<SettingsTab>('faces');
 
@@ -82,6 +90,9 @@ export const SettingsSheet: React.FC<SettingsSheetProps> = ({
   const [isCreatingPreset, setIsCreatingPreset] = useState(false);
   const [editingPresetId, setEditingPresetId] = useState<string | null>(null);
   const [editingPresetName, setEditingPresetName] = useState('');
+
+  // Live preview toggle inside Sleep tab
+  const [isPreviewingSleep, setIsPreviewingSleep] = useState(false);
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -163,6 +174,19 @@ export const SettingsSheet: React.FC<SettingsSheetProps> = ({
     setEditingPresetName('');
   };
 
+  // Format transition time cleanly
+  const formattedNextTransition = nextTransition
+    ? nextTransition.toLocaleTimeString(undefined, {
+        hour: 'numeric',
+        minute: '2-digit',
+      })
+    : null;
+
+  // Sleep preview values
+  const sleepTintColor = getColor(settings.sleepTint);
+  const previewHours = currentTime.getHours() % (settings.is24Hour ? 24 : 12) || (settings.is24Hour ? 0 : 12);
+  const previewMinutes = currentTime.getMinutes().toString().padStart(2, '0');
+
   return (
     <div
       onClick={onClose}
@@ -172,18 +196,18 @@ export const SettingsSheet: React.FC<SettingsSheetProps> = ({
         onClick={(e) => e.stopPropagation()}
         className="w-full max-w-2xl rounded-t-3xl sm:rounded-3xl bg-[#0b0c10]/95 border border-white/10 p-4 sm:p-6 shadow-2xl max-h-[92dvh] overflow-y-auto no-scrollbar flex flex-col gap-5"
       >
-        {/* Header with Offline Status & Night Mode indicator */}
+        {/* Header with Offline Status & Sleep Mode indicator */}
         <div className="flex items-center justify-between border-b border-white/10 pb-3.5">
           <div className="flex flex-col">
             <div className="flex items-center gap-2.5">
               <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse shadow-[0_0_10px_rgba(244,63,94,0.7)]" />
-              <h2 className="text-xl font-black text-white tracking-tight">ClockDock Studio 2.0</h2>
+              <h2 className="text-xl font-black text-white tracking-tight">ClockDock Studio</h2>
 
-              {/* Night Mode Active Pill */}
-              {isNightModeActive && (
+              {/* Sleep Mode Active Pill */}
+              {isSleepModeActive && (
                 <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold border border-rose-500/40 bg-rose-500/15 text-rose-300">
                   <Moon className="w-3 h-3 text-rose-400" />
-                  <span>Night Mode Active</span>
+                  <span>Sleep Mode Active</span>
                 </div>
               )}
 
@@ -210,14 +234,14 @@ export const SettingsSheet: React.FC<SettingsSheetProps> = ({
               </div>
             </div>
             <p className="text-xs text-zinc-400 mt-1">
-              Premium StandBy clock faces, wallpaper studio & intelligent bedside night mode
+              Adaptive Sleep Mode, Smart Dock controls & bedside screensaver
             </p>
           </div>
 
           <button
             onClick={onClose}
             className="p-2.5 rounded-full bg-white/5 hover:bg-white/15 text-zinc-400 hover:text-white transition-colors"
-            title="Close Settings"
+            title="Close Settings (Escape or S)"
           >
             <X className="w-5 h-5" />
           </button>
@@ -228,9 +252,9 @@ export const SettingsSheet: React.FC<SettingsSheetProps> = ({
           {[
             { id: 'faces', label: 'Clock', icon: Clock },
             { id: 'wallpaper', label: 'Wallpaper', icon: Sparkles },
-            { id: 'night', label: 'Night Mode', icon: Moon },
+            { id: 'sleep', label: 'Sleep Mode', icon: Moon },
             { id: 'presets', label: 'Presets', icon: Bookmark },
-            { id: 'display', label: 'Display', icon: Sliders },
+            { id: 'display', label: 'Smart Dock', icon: Sliders },
           ].map((tab) => {
             const Icon = tab.icon;
             const isTabActive = activeTab === tab.id;
@@ -252,7 +276,7 @@ export const SettingsSheet: React.FC<SettingsSheetProps> = ({
         </div>
 
         {/* ============================================================ */}
-        {/* TAB 1: CLOCK FACES & STYLING */}
+        {/* TAB 1: CLOCK FACES & STYLING (DAYTIME APPEARANCE) */}
         {/* ============================================================ */}
         {activeTab === 'faces' && (
           <div className="flex flex-col gap-5 animate-fadeIn">
@@ -358,7 +382,7 @@ export const SettingsSheet: React.FC<SettingsSheetProps> = ({
             <div className="flex flex-col gap-2">
               <span className="text-xs font-bold uppercase tracking-wider text-zinc-400 flex items-center gap-1.5">
                 <Palette className="w-3.5 h-3.5" />
-                <span>Clock Accent Color</span>
+                <span>Daytime Accent Color</span>
               </span>
               <div className="flex items-center justify-between gap-2 p-3 rounded-2xl bg-zinc-900/50 border border-zinc-800">
                 {CLOCK_COLORS.map((c) => {
@@ -513,7 +537,7 @@ export const SettingsSheet: React.FC<SettingsSheetProps> = ({
         )}
 
         {/* ============================================================ */}
-        {/* TAB 2: WALLPAPER STUDIO */}
+        {/* TAB 2: WALLPAPER STUDIO (DAYTIME BACKGROUNDS) */}
         {/* ============================================================ */}
         {activeTab === 'wallpaper' && (
           <div className="flex flex-col gap-4 animate-fadeIn">
@@ -725,85 +749,240 @@ export const SettingsSheet: React.FC<SettingsSheetProps> = ({
         )}
 
         {/* ============================================================ */}
-        {/* TAB 3: INTELLIGENT NIGHT MODE */}
+        {/* TAB 3: ADAPTIVE SLEEP MODE (PHASE 1) */}
         {/* ============================================================ */}
-        {activeTab === 'night' && (
+        {activeTab === 'sleep' && (
           <div className="flex flex-col gap-4 animate-fadeIn">
-            {/* Master Toggle & Manual Override */}
-            <div className="p-4 rounded-2xl bg-zinc-900/60 border border-rose-500/30 flex flex-col gap-3">
+            {/* Master Control Card */}
+            <div className="p-4 rounded-2xl bg-zinc-900/70 border border-rose-500/30 flex flex-col gap-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Moon className="w-4 h-4 text-rose-400" />
-                  <span className="text-sm font-black text-white">Bedside Night Mode</span>
+                  <div>
+                    <h3 className="text-sm font-black text-white">Adaptive Sleep Mode</h3>
+                    <p className="text-[11px] text-zinc-400">
+                      Circadian bedside automation with independent nighttime appearance
+                    </p>
+                  </div>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  {/* Manual Override Button */}
-                  <button
-                    onClick={onToggleNightManual}
-                    className={`text-xs px-3 py-1.5 rounded-xl font-bold border transition-all ${
-                      isNightModeActive
-                        ? 'border-rose-400 bg-rose-500/20 text-rose-300 shadow-[0_0_12px_rgba(244,63,94,0.3)]'
-                        : 'border-zinc-700 bg-zinc-800 text-zinc-400 hover:text-white'
-                    }`}
-                  >
-                    {isNightModeActive ? '🌙 Night Mode Active (Tap to Exit)' : '☀️ Day Mode (Tap for Night)'}
-                  </button>
+                {/* Master Auto-Schedule Toggle */}
+                <button
+                  onClick={() => onUpdate({ sleepModeEnabled: !settings.sleepModeEnabled })}
+                  className={`text-xs px-3 py-1.5 rounded-xl font-bold border transition-all ${
+                    settings.sleepModeEnabled
+                      ? 'border-emerald-500/50 bg-emerald-500/20 text-emerald-300'
+                      : 'border-zinc-700 bg-zinc-800 text-zinc-400'
+                  }`}
+                >
+                  {settings.sleepModeEnabled ? 'Schedule Enabled' : 'Schedule Off'}
+                </button>
+              </div>
 
-                  {/* Auto-Schedule Toggle */}
-                  <button
-                    onClick={() => onUpdate({ nightModeEnabled: !settings.nightModeEnabled })}
-                    className={`text-xs px-3 py-1.5 rounded-xl font-bold border transition-all ${
-                      settings.nightModeEnabled
-                        ? 'border-emerald-500/50 bg-emerald-500/20 text-emerald-300'
-                        : 'border-zinc-700 bg-zinc-800 text-zinc-400'
-                    }`}
-                  >
-                    {settings.nightModeEnabled ? 'Schedule Enabled' : 'Schedule Off'}
-                  </button>
+              {/* Manual Override Action with Contextual Explanation */}
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 pt-2 border-t border-white/10">
+                <div className="text-xs">
+                  <span className="font-semibold text-zinc-300">
+                    Status:{' '}
+                    {isSleepModeActive ? (
+                      <span className="text-rose-400 font-bold">🌙 Sleep Mode Active</span>
+                    ) : (
+                      <span className="text-emerald-400 font-bold">☀️ Daytime Active</span>
+                    )}
+                  </span>
+                  {isOverrideActive && (
+                    <span className="text-[11px] text-amber-300 ml-2 font-mono">
+                      (Manual Override)
+                    </span>
+                  )}
+                  {formattedNextTransition && (
+                    <p className="text-[11px] text-zinc-500 mt-0.5">
+                      Next transition: {formattedNextTransition}
+                    </p>
+                  )}
                 </div>
-              </div>
 
-              <p className="text-xs text-zinc-400 leading-relaxed">
-                Automatically transitions into OLED Pure Black with low-emission night tint and
-                suppressed seconds to protect your circadian rhythm and bedroom sleep.
-              </p>
-            </div>
-
-            {/* Scheduled Hours Picker */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-4 rounded-2xl bg-zinc-900/40 border border-zinc-800">
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-bold text-zinc-300">
-                  Night Mode Starts (Local Time):
-                </label>
-                <input
-                  type="time"
-                  value={settings.nightModeStart}
-                  onChange={(e) => onUpdate({ nightModeStart: e.target.value })}
-                  className="px-3 py-2 rounded-xl bg-black/60 border border-zinc-700 text-white font-mono text-sm focus:outline-none focus:border-rose-400"
-                />
-              </div>
-
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-bold text-zinc-300">
-                  Night Mode Ends (Local Time):
-                </label>
-                <input
-                  type="time"
-                  value={settings.nightModeEnd}
-                  onChange={(e) => onUpdate({ nightModeEnd: e.target.value })}
-                  className="px-3 py-2 rounded-xl bg-black/60 border border-zinc-700 text-white font-mono text-sm focus:outline-none focus:border-rose-400"
-                />
+                <button
+                  onClick={onToggleSleepManual}
+                  className={`text-xs px-3.5 py-2 rounded-xl font-bold border transition-all shadow ${
+                    isSleepModeActive
+                      ? 'border-rose-400 bg-rose-500/20 text-rose-200 hover:bg-rose-500/30'
+                      : 'border-white/20 bg-white/10 text-white hover:bg-white/20'
+                  }`}
+                >
+                  {isSleepModeActive ? 'Exit Sleep Mode Manually' : 'Activate Sleep Mode Now'}
+                </button>
               </div>
             </div>
 
-            {/* Night Appearance Controls */}
+            {/* Schedule Configuration Card */}
             <div className="p-4 rounded-2xl bg-zinc-900/40 border border-zinc-800 flex flex-col gap-3.5">
-              <span className="text-xs font-bold uppercase tracking-wider text-zinc-400">
-                Night Appearance Preferences
-              </span>
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-wider text-zinc-300 flex items-center gap-1.5">
+                  <CalendarRange className="w-3.5 h-3.5 text-zinc-400" />
+                  <span>Bedtime & Wake Schedule</span>
+                </span>
 
-              {/* Night Tint Picker */}
+                {/* Daily vs Weekday/Weekend selector */}
+                <div className="flex items-center gap-1 bg-black/40 p-1 rounded-xl border border-zinc-800 text-xs">
+                  {(['daily', 'weekday_weekend'] as SleepScheduleMode[]).map((mode) => (
+                    <button
+                      key={mode}
+                      onClick={() => onUpdate({ sleepScheduleMode: mode })}
+                      className={`px-2.5 py-1 rounded-lg font-bold text-[11px] transition-all ${
+                        settings.sleepScheduleMode === mode
+                          ? 'bg-white text-black shadow'
+                          : 'text-zinc-400 hover:text-white'
+                      }`}
+                    >
+                      {mode === 'daily' ? 'Daily' : 'Weekday / Weekend'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Mode: Daily Schedule */}
+              {settings.sleepScheduleMode === 'daily' && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-bold text-zinc-300">
+                      Night Bedtime (Daily):
+                    </label>
+                    <input
+                      type="time"
+                      value={settings.sleepStart}
+                      onChange={(e) => onUpdate({ sleepStart: e.target.value })}
+                      className="px-3 py-2 rounded-xl bg-black/60 border border-zinc-700 text-white font-mono text-sm focus:outline-none focus:border-rose-400"
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-bold text-zinc-300">
+                      Morning Wake-Up (Daily):
+                    </label>
+                    <input
+                      type="time"
+                      value={settings.sleepEnd}
+                      onChange={(e) => onUpdate({ sleepEnd: e.target.value })}
+                      className="px-3 py-2 rounded-xl bg-black/60 border border-zinc-700 text-white font-mono text-sm focus:outline-none focus:border-rose-400"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Mode: Separate Weekday vs Weekend */}
+              {settings.sleepScheduleMode === 'weekday_weekend' && (
+                <div className="flex flex-col gap-3 pt-1">
+                  {/* Weekday */}
+                  <div className="p-3 rounded-xl bg-black/30 border border-zinc-800 flex flex-col gap-2">
+                    <span className="text-[11px] font-bold text-zinc-300">
+                      Weekday Schedule (Sunday night – Thursday night):
+                    </span>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="flex flex-col gap-1">
+                        <span className="text-[10px] text-zinc-400">Bedtime</span>
+                        <input
+                          type="time"
+                          value={settings.sleepStartWeekday}
+                          onChange={(e) => onUpdate({ sleepStartWeekday: e.target.value })}
+                          className="px-2.5 py-1.5 rounded-lg bg-black/60 border border-zinc-700 text-white font-mono text-xs"
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <span className="text-[10px] text-zinc-400">Wake-Up</span>
+                        <input
+                          type="time"
+                          value={settings.sleepEndWeekday}
+                          onChange={(e) => onUpdate({ sleepEndWeekday: e.target.value })}
+                          className="px-2.5 py-1.5 rounded-lg bg-black/60 border border-zinc-700 text-white font-mono text-xs"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Weekend */}
+                  <div className="p-3 rounded-xl bg-black/30 border border-zinc-800 flex flex-col gap-2">
+                    <span className="text-[11px] font-bold text-zinc-300">
+                      Weekend Schedule (Friday night & Saturday night):
+                    </span>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="flex flex-col gap-1">
+                        <span className="text-[10px] text-zinc-400">Bedtime</span>
+                        <input
+                          type="time"
+                          value={settings.sleepStartWeekend}
+                          onChange={(e) => onUpdate({ sleepStartWeekend: e.target.value })}
+                          className="px-2.5 py-1.5 rounded-lg bg-black/60 border border-zinc-700 text-white font-mono text-xs"
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <span className="text-[10px] text-zinc-400">Wake-Up</span>
+                        <input
+                          type="time"
+                          value={settings.sleepEndWeekend}
+                          onChange={(e) => onUpdate({ sleepEndWeekend: e.target.value })}
+                          className="px-2.5 py-1.5 rounded-lg bg-black/60 border border-zinc-700 text-white font-mono text-xs"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Dedicated Nighttime Appearance (Configured Independently from Daytime!) */}
+            <div className="p-4 rounded-2xl bg-zinc-900/40 border border-zinc-800 flex flex-col gap-3.5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-xs font-bold uppercase tracking-wider text-zinc-300 flex items-center gap-1.5">
+                    <Palette className="w-3.5 h-3.5 text-zinc-400" />
+                    <span>Dedicated Night Appearance</span>
+                  </span>
+                  <p className="text-[11px] text-zinc-500 mt-0.5">
+                    Your daytime clock face and theme remain completely preserved and restore upon wake-up.
+                  </p>
+                </div>
+
+                <button
+                  onClick={() => setIsPreviewingSleep((p) => !p)}
+                  className={`text-[11px] px-2.5 py-1 rounded-xl font-bold border flex items-center gap-1 transition-all ${
+                    isPreviewingSleep
+                      ? 'border-rose-400 bg-rose-500/20 text-rose-300'
+                      : 'border-zinc-700 bg-zinc-800 text-zinc-400 hover:text-white'
+                  }`}
+                >
+                  <Eye className="w-3 h-3" />
+                  <span>{isPreviewingSleep ? 'Hide Preview' : 'Show Live Preview'}</span>
+                </button>
+              </div>
+
+              {/* Interactive Miniature Live Night Preview Card */}
+              {isPreviewingSleep && (
+                <div
+                  className="p-4 rounded-2xl border flex flex-col items-center justify-center gap-1 transition-all animate-fadeIn"
+                  style={{
+                    backgroundColor: settings.sleepBgTheme === 'oled-black' ? '#000000' : '#08080c',
+                    borderColor: `${sleepTintColor.primary}30`,
+                    filter: `brightness(${settings.sleepDimmer})`,
+                  }}
+                >
+                  <span className="text-[10px] font-mono tracking-widest uppercase text-zinc-500">
+                    NIGHT MODE LIVE PREVIEW
+                  </span>
+                  <div className="flex items-center gap-1 font-black text-4xl sm:text-5xl font-mono tracking-tight leading-none mt-1">
+                    <span style={{ color: sleepTintColor.primary }}>{previewHours}</span>
+                    <span style={{ color: sleepTintColor.secondary }} className="animate-pulse">:</span>
+                    <span style={{ color: sleepTintColor.primary }}>{previewMinutes}</span>
+                  </div>
+                  {!settings.sleepMinimalDate && (
+                    <span className="text-[10px] font-mono mt-1" style={{ color: sleepTintColor.secondary }}>
+                      {currentTime.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
+                    </span>
+                  )}
+                </div>
+              )}
+
+              {/* Night Clock Tint */}
               <div className="flex items-center justify-between gap-2">
                 <span className="text-xs text-zinc-300 font-semibold">Low-Emission Tint:</span>
                 <div className="flex items-center gap-2">
@@ -815,9 +994,9 @@ export const SettingsSheet: React.FC<SettingsSheetProps> = ({
                   ].map((tint) => (
                     <button
                       key={tint.id}
-                      onClick={() => onUpdate({ nightModeTint: tint.id as ClockColorId })}
+                      onClick={() => onUpdate({ sleepTint: tint.id as ClockColorId })}
                       className={`w-7 h-7 rounded-full border transition-all ${
-                        settings.nightModeTint === tint.id
+                        settings.sleepTint === tint.id
                           ? 'ring-2 ring-white ring-offset-2 ring-offset-black scale-110 shadow-lg'
                           : 'opacity-65 hover:opacity-100'
                       }`}
@@ -828,12 +1007,12 @@ export const SettingsSheet: React.FC<SettingsSheetProps> = ({
                 </div>
               </div>
 
-              {/* Night Dimmer */}
+              {/* Night Dimmer Slider */}
               <div className="flex flex-col gap-1.5">
                 <div className="flex items-center justify-between text-xs">
-                  <span className="text-zinc-300 font-semibold">Night Dimmer Level:</span>
+                  <span className="text-zinc-300 font-semibold">Nighttime Dimmer Level:</span>
                   <span className="font-mono text-zinc-400">
-                    {Math.round(settings.nightModeDimmer * 100)}%
+                    {Math.round(settings.sleepDimmer * 100)}%
                   </span>
                 </div>
                 <input
@@ -841,43 +1020,67 @@ export const SettingsSheet: React.FC<SettingsSheetProps> = ({
                   min="0.15"
                   max="0.65"
                   step="0.05"
-                  value={settings.nightModeDimmer}
-                  onChange={(e) => onUpdate({ nightModeDimmer: parseFloat(e.target.value) })}
+                  value={settings.sleepDimmer}
+                  onChange={(e) => onUpdate({ sleepDimmer: parseFloat(e.target.value) })}
                   className="w-full h-1.5 bg-white/20 rounded-lg appearance-none cursor-pointer accent-white"
                 />
               </div>
 
-              {/* Circadian distraction toggles */}
+              {/* Night Distraction Suppression Controls */}
               <div className="grid grid-cols-2 gap-2 pt-1">
                 <button
-                  onClick={() =>
-                    onUpdate({ nightModeSuppressSeconds: !settings.nightModeSuppressSeconds })
-                  }
+                  onClick={() => onUpdate({ sleepHideSeconds: !settings.sleepHideSeconds })}
                   className={`p-2.5 rounded-xl border text-xs font-bold transition-all ${
-                    settings.nightModeSuppressSeconds
+                    settings.sleepHideSeconds
                       ? 'border-rose-500/40 bg-rose-500/15 text-rose-300'
                       : 'border-zinc-800 bg-zinc-900/60 text-zinc-400'
                   }`}
                 >
-                  Seconds: {settings.nightModeSuppressSeconds ? 'Suppressed' : 'Visible'}
+                  Seconds: {settings.sleepHideSeconds ? 'Suppressed' : 'Visible'}
+                </button>
+
+                <button
+                  onClick={() => onUpdate({ sleepMinimalDate: !settings.sleepMinimalDate })}
+                  className={`p-2.5 rounded-xl border text-xs font-bold transition-all ${
+                    settings.sleepMinimalDate
+                      ? 'border-rose-500/40 bg-rose-500/15 text-rose-300'
+                      : 'border-zinc-800 bg-zinc-900/60 text-zinc-400'
+                  }`}
+                >
+                  Date: {settings.sleepMinimalDate ? 'Minimal' : 'Full'}
                 </button>
 
                 <button
                   onClick={() =>
-                    onUpdate({ nightModeMinimalDate: !settings.nightModeMinimalDate })
+                    onUpdate({ sleepDisableAnimations: !settings.sleepDisableAnimations })
                   }
                   className={`p-2.5 rounded-xl border text-xs font-bold transition-all ${
-                    settings.nightModeMinimalDate
+                    settings.sleepDisableAnimations
                       ? 'border-rose-500/40 bg-rose-500/15 text-rose-300'
                       : 'border-zinc-800 bg-zinc-900/60 text-zinc-400'
                   }`}
                 >
-                  Date: {settings.nightModeMinimalDate ? 'Minimal' : 'Full'}
+                  Animations: {settings.sleepDisableAnimations ? 'Paused' : 'Active'}
+                </button>
+
+                <button
+                  onClick={() =>
+                    onUpdate({
+                      sleepGlowStrength: settings.sleepGlowStrength === 'off' ? 'subtle' : 'off',
+                    })
+                  }
+                  className={`p-2.5 rounded-xl border text-xs font-bold transition-all ${
+                    settings.sleepGlowStrength === 'off'
+                      ? 'border-rose-500/40 bg-rose-500/15 text-rose-300'
+                      : 'border-zinc-800 bg-zinc-900/60 text-zinc-400'
+                  }`}
+                >
+                  Glow Halos: {settings.sleepGlowStrength === 'off' ? 'Disabled' : 'Subtle'}
                 </button>
               </div>
             </div>
 
-            {/* Hardware note alert */}
+            {/* Hardware Note Alert */}
             <div className="flex items-start gap-2.5 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-200/90 text-xs leading-relaxed">
               <Info className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
               <span>
@@ -1039,7 +1242,7 @@ export const SettingsSheet: React.FC<SettingsSheetProps> = ({
         )}
 
         {/* ============================================================ */}
-        {/* TAB 5: DISPLAY & DEVICE CONTROLS */}
+        {/* TAB 5: SMART DOCK & DEVICE CONTROLS */}
         {/* ============================================================ */}
         {activeTab === 'display' && (
           <div className="flex flex-col gap-4 animate-fadeIn">
@@ -1048,7 +1251,7 @@ export const SettingsSheet: React.FC<SettingsSheetProps> = ({
               <div className="flex items-center justify-between text-xs">
                 <div className="flex items-center gap-2 text-zinc-300 font-bold">
                   <SunMedium className="w-4 h-4 text-amber-400" />
-                  <span>Bedside Screen Dimmer</span>
+                  <span>Daytime Bedside Dimmer</span>
                 </div>
                 <span className="font-mono text-zinc-400">
                   {Math.round(settings.dimmer * 100)}%
@@ -1065,7 +1268,7 @@ export const SettingsSheet: React.FC<SettingsSheetProps> = ({
               />
             </div>
 
-            {/* Orientation and Viewport options */}
+            {/* Smart Dock Orientation and Viewport Options */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {/* Forced 90deg Landscape */}
               <button
@@ -1083,7 +1286,7 @@ export const SettingsSheet: React.FC<SettingsSheetProps> = ({
                       Forced 90° Landscape
                     </span>
                     <span className="block text-[10px] text-zinc-400">
-                      Ideal for mobile bedside docks
+                      Rotates viewport for bedside charging stands
                     </span>
                   </div>
                 </div>
@@ -1105,7 +1308,7 @@ export const SettingsSheet: React.FC<SettingsSheetProps> = ({
                       {isOnline ? 'PWA Offline Cache Active' : 'Offline Mode Active'}
                     </span>
                     <span className="block text-[10px] text-zinc-400">
-                      Works 100% without network
+                      Runs 100% locally with zero network calls
                     </span>
                   </div>
                 </div>
@@ -1119,15 +1322,15 @@ export const SettingsSheet: React.FC<SettingsSheetProps> = ({
               </div>
             </div>
 
-            {/* Safe Area & Gestures Guide */}
+            {/* Smart Dock Interaction Guide */}
             <div className="p-3.5 rounded-2xl bg-zinc-900/30 border border-zinc-800/80 flex flex-col gap-1.5 text-xs text-zinc-400">
-              <span className="font-bold text-zinc-300">Gesture & Keyboard Shortcuts:</span>
+              <span className="font-bold text-zinc-300">Smart Dock Features & Gestures:</span>
               <ul className="list-disc list-inside space-y-0.5 text-[11px] text-zinc-400">
-                <li>Swipe Left / Right: cycle through all 9 clock faces</li>
-                <li>Tap screen / move mouse: reveal hidden controls</li>
-                <li>Keys 1–9: jump directly to clock face 1 through 9</li>
-                <li>Key S: open/close settings sheet • Key F: fullscreen toggle</li>
-                <li>Spacebar: cycle accent colors</li>
+                <li><strong className="text-zinc-300">Touch to Reveal:</strong> Tap anywhere to show controls; auto-fades after 3.5s idle</li>
+                <li><strong className="text-zinc-300">Hover Persistence:</strong> Controls stay visible while pointer interacts with buttons</li>
+                <li><strong className="text-zinc-300">Keyboard Shortcuts:</strong> S (Settings), N (Toggle Sleep Mode), F (Fullscreen)</li>
+                <li><strong className="text-zinc-300">Face Switching:</strong> Horizontal swipe on screen, Arrow keys, or 1–9</li>
+                <li><strong className="text-zinc-300">Safe Area Handling:</strong> Screen adapts automatically around notches & home bars</li>
               </ul>
             </div>
           </div>

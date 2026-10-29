@@ -42,6 +42,7 @@ export type EffectIntensity = 'low' | 'medium' | 'high';
 export type ParticleDensity = 'low' | 'medium' | 'high';
 export type NumeralSize = 'standard' | 'large' | 'xlarge';
 export type GlowStrength = 'off' | 'subtle' | 'vibrant';
+export type SleepScheduleMode = 'daily' | 'weekday_weekend';
 
 export interface BackgroundTheme {
   id: BackgroundThemeId;
@@ -90,8 +91,13 @@ export interface UserPreset {
   numeralSize?: NumeralSize;
 }
 
+export interface SleepManualOverride {
+  targetState: boolean; // true = forced sleep mode, false = forced daytime mode
+  expiresAt: number;    // timestamp in ms for the next scheduled transition boundary
+}
+
 export interface ClockSettings {
-  // Clock Face
+  // Daytime Clock Face & Appearance
   face: ClockFaceId;
   clockColor: ClockColorId;
   fontStyle: TypographyStyleId;
@@ -120,13 +126,33 @@ export interface ClockSettings {
   worldClockTimezone: string;
   showSecondaryClock: boolean;
 
-  // Intelligent Night Mode
-  nightModeEnabled: boolean;
-  nightModeStart: string; // "22:00"
-  nightModeEnd: string;   // "07:00"
-  nightModeTint: ClockColorId;
-  nightModeDimmer: number;
-  nightModeSuppressSeconds: boolean;
-  nightModeMinimalDate: boolean;
-  nightModeManual: boolean | null; // null = follow schedule, true = forced night, false = forced day
+  // Adaptive Sleep Mode (Phase 1)
+  sleepModeEnabled: boolean;
+  sleepScheduleMode: SleepScheduleMode;
+  sleepStart: string; // "22:00" (daily)
+  sleepEnd: string;   // "07:00" (daily)
+  sleepStartWeekday: string; // "22:30"
+  sleepEndWeekday: string;   // "06:45"
+  sleepStartWeekend: string; // "23:45"
+  sleepEndWeekend: string;   // "08:30"
+  sleepManualOverride: SleepManualOverride | null;
+
+  // Dedicated Nighttime Appearance (Restores daytime appearance when exiting sleep mode)
+  sleepBgTheme: BackgroundThemeId;
+  sleepTint: ClockColorId;
+  sleepDimmer: number; // 0.15 to 0.70
+  sleepHideSeconds: boolean;
+  sleepMinimalDate: boolean;
+  sleepDisableAnimations: boolean;
+  sleepGlowStrength: GlowStrength;
+
+  // Backward compatibility aliases
+  nightModeEnabled?: boolean;
+  nightModeStart?: string;
+  nightModeEnd?: string;
+  nightModeTint?: ClockColorId;
+  nightModeDimmer?: number;
+  nightModeSuppressSeconds?: boolean;
+  nightModeMinimalDate?: boolean;
+  nightModeManual?: boolean | null;
 }

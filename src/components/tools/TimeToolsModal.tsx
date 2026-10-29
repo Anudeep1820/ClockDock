@@ -150,7 +150,15 @@ export const TimeToolsModal: React.FC<TimeToolsModalProps> = ({
 
   const handleSaveAlarmForm = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!/^\d{2}:\d{2}$/.test(alarmFormTime)) {
+    let cleanTime = alarmFormTime.trim();
+    if (/^\d{1}:\d{2}$/.test(cleanTime)) {
+      cleanTime = '0' + cleanTime;
+    }
+    if (/^\d{2}:\d{2}:\d{2}$/.test(cleanTime)) {
+      cleanTime = cleanTime.slice(0, 5);
+    }
+
+    if (!/^\d{2}:\d{2}$/.test(cleanTime)) {
       onShowToast('Please enter a valid time (HH:MM)');
       return;
     }
@@ -163,7 +171,7 @@ export const TimeToolsModal: React.FC<TimeToolsModalProps> = ({
         a.id === editingAlarm.id
           ? {
               ...a,
-              time: alarmFormTime,
+              time: cleanTime,
               label: cleanLabel,
               days: alarmFormDays,
               enabled: true,
@@ -172,18 +180,18 @@ export const TimeToolsModal: React.FC<TimeToolsModalProps> = ({
           : a
       );
       onSaveAlarms(updated);
-      onShowToast(`Updated alarm for ${formatTimeDisplay(alarmFormTime, is24Hour)}`);
+      onShowToast(`Updated alarm for ${formatTimeDisplay(cleanTime, is24Hour)}`);
     } else {
       // Create new alarm
       const newAlarm: AlarmItem = {
         id: `alarm-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-        time: alarmFormTime,
+        time: cleanTime,
         label: cleanLabel,
         days: alarmFormDays,
         enabled: true,
       };
       onSaveAlarms([...alarms, newAlarm]);
-      onShowToast(`Alarm set for ${formatTimeDisplay(alarmFormTime, is24Hour)}`);
+      onShowToast(`Alarm set for ${formatTimeDisplay(cleanTime, is24Hour)}`);
     }
 
     setEditingAlarm(null);
@@ -825,6 +833,75 @@ export const TimeToolsModal: React.FC<TimeToolsModalProps> = ({
                   >
                     +1 Min
                   </button>
+                </div>
+              </div>
+
+              {/* Custom Duration Picker (Hours, Minutes, Seconds) */}
+              <div>
+                <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider block mb-2">
+                  Custom Duration
+                </label>
+                <div className="flex items-center gap-2 p-2 rounded-2xl bg-black/40 border border-white/10">
+                  <div className="flex-1 flex flex-col items-center">
+                    <input
+                      type="number"
+                      min={0}
+                      max={23}
+                      value={Math.floor(timer.durationSeconds / 3600)}
+                      disabled={timer.isRunning}
+                      onChange={(e) => {
+                        const h = Math.max(0, Math.min(23, parseInt(e.target.value, 10) || 0));
+                        const m = Math.floor((timer.durationSeconds % 3600) / 60);
+                        const s = timer.durationSeconds % 60;
+                        const total = Math.max(1, h * 3600 + m * 60 + s);
+                        handleSelectTimerPreset(total, `${h > 0 ? h + 'h ' : ''}${m}m`);
+                      }}
+                      className="w-full text-center py-1.5 rounded-xl bg-white/5 border border-white/10 text-white font-mono font-bold text-base focus:outline-none focus:border-white/30 disabled:opacity-40"
+                    />
+                    <span className="text-[10px] text-zinc-500 uppercase font-semibold mt-1">Hours</span>
+                  </div>
+
+                  <span className="text-zinc-600 font-bold text-lg -mt-3">:</span>
+
+                  <div className="flex-1 flex flex-col items-center">
+                    <input
+                      type="number"
+                      min={0}
+                      max={59}
+                      value={Math.floor((timer.durationSeconds % 3600) / 60)}
+                      disabled={timer.isRunning}
+                      onChange={(e) => {
+                        const h = Math.floor(timer.durationSeconds / 3600);
+                        const m = Math.max(0, Math.min(59, parseInt(e.target.value, 10) || 0));
+                        const s = timer.durationSeconds % 60;
+                        const total = Math.max(1, h * 3600 + m * 60 + s);
+                        handleSelectTimerPreset(total, `${h > 0 ? h + 'h ' : ''}${m}m`);
+                      }}
+                      className="w-full text-center py-1.5 rounded-xl bg-white/5 border border-white/10 text-white font-mono font-bold text-base focus:outline-none focus:border-white/30 disabled:opacity-40"
+                    />
+                    <span className="text-[10px] text-zinc-500 uppercase font-semibold mt-1">Minutes</span>
+                  </div>
+
+                  <span className="text-zinc-600 font-bold text-lg -mt-3">:</span>
+
+                  <div className="flex-1 flex flex-col items-center">
+                    <input
+                      type="number"
+                      min={0}
+                      max={59}
+                      value={timer.durationSeconds % 60}
+                      disabled={timer.isRunning}
+                      onChange={(e) => {
+                        const h = Math.floor(timer.durationSeconds / 3600);
+                        const m = Math.floor((timer.durationSeconds % 3600) / 60);
+                        const s = Math.max(0, Math.min(59, parseInt(e.target.value, 10) || 0));
+                        const total = Math.max(1, h * 3600 + m * 60 + s);
+                        handleSelectTimerPreset(total, `${h > 0 ? h + 'h ' : ''}${m}m ${s}s`);
+                      }}
+                      className="w-full text-center py-1.5 rounded-xl bg-white/5 border border-white/10 text-white font-mono font-bold text-base focus:outline-none focus:border-white/30 disabled:opacity-40"
+                    />
+                    <span className="text-[10px] text-zinc-500 uppercase font-semibold mt-1">Seconds</span>
+                  </div>
                 </div>
               </div>
 

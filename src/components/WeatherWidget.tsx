@@ -21,6 +21,7 @@ interface WeatherWidgetProps {
   visible: boolean;
   onRefresh?: () => void;
   isLoading?: boolean;
+  isRotated?: boolean;
 }
 
 export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
@@ -30,6 +31,7 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
   visible,
   onRefresh,
   isLoading = false,
+  isRotated = false,
 }) => {
   if (!weather) return null;
 
@@ -58,9 +60,11 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
     }
   };
 
+  const positionClass = isRotated ? 'safe-bottom safe-left' : 'safe-top safe-left';
+
   return (
     <div
-      className={`fixed safe-top safe-left z-40 transition-all duration-500 ${
+      className={`fixed ${positionClass} z-40 transition-all duration-500 ${
         visible ? 'opacity-100' : 'opacity-0 pointer-events-none'
       }`}
     >

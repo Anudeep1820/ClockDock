@@ -685,6 +685,7 @@ export const App: React.FC = () => {
             visible={controlsVisible}
             onRefresh={() => refreshWeather(true)}
             isLoading={isWeatherLoading}
+            isRotated={settings.forcedLandscape}
           />
         )}
 

@@ -174,3 +174,48 @@ export interface ClockSettings {
   nightModeMinimalDate?: boolean;
   nightModeManual?: boolean | null;
 }
+
+// --------------------------------------------------------------------------
+// Phase 3: Time Tools (Alarms, Countdown Timer, Stopwatch)
+// --------------------------------------------------------------------------
+
+export interface AlarmItem {
+  id: string;
+  time: string; // "HH:MM" 24-hour format (e.g. "07:30")
+  label: string;
+  enabled: boolean;
+  days: number[]; // 0 = Sun, 1 = Mon, ..., 6 = Sat. Empty array [] means one-time alarm.
+  snoozedUntil?: number | null; // Epoch timestamp (ms) if snoozed
+  lastTriggeredDate?: string; // "YYYY-MM-DD" prevents double trigger within same minute
+}
+
+export interface TimerState {
+  durationSeconds: number; // Configured total countdown seconds
+  remainingSeconds: number; // Current remaining seconds
+  endTime: number | null; // Epoch ms when running; null when paused/idle
+  isRunning: boolean;
+  isCompleted: boolean;
+  label?: string;
+}
+
+export interface StopwatchLap {
+  lapNumber: number;
+  overallTimeMs: number;
+  lapTimeMs: number;
+}
+
+export interface StopwatchState {
+  accumulatedMs: number;
+  startTime: number | null; // Epoch ms when running
+  isRunning: boolean;
+  laps: StopwatchLap[];
+}
+
+export interface ActiveAlert {
+  type: 'alarm' | 'timer';
+  id: string;
+  title: string;
+  subtitle?: string;
+  timestamp: number;
+  alarmItem?: AlarmItem;
+}

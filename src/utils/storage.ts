@@ -1,4 +1,4 @@
-import { ClockSettings, UserPreset } from '../types';
+import { ClockSettings, UserPreset, AlarmItem, TimerState, StopwatchState } from '../types';
 
 export const BUILT_IN_PRESETS: UserPreset[] = [
   {
@@ -429,4 +429,213 @@ export function computeEffectiveSleepMode(
     nextTransition: nextScheduled ? nextScheduled.time : null,
     expiredOverrideToClear: false,
   };
+}
+
+// --------------------------------------------------------------------------
+// Phase 3: Time Tools Persistence (Alarms, Timer, Stopwatch)
+// --------------------------------------------------------------------------
+
+const ALARMS_STORAGE_KEY = 'clockdock_alarms_v1';
+const TIMER_STORAGE_KEY = 'clockdock_timer_v1';
+const STOPWATCH_STORAGE_KEY = 'clockdock_stopwatch_v1';
+
+export const DEFAULT_ALARMS: AlarmItem[] = [
+  {
+    id: 'alarm-default-1',
+    time: '07:30',
+    label: 'Morning StandBy',
+    enabled: false,
+    days: [1, 2, 3, 4, 5], // Mon-Fri
+  },
+  {
+    id: 'alarm-default-2',
+    time: '08:30',
+    label: 'Weekend Rise',
+    enabled: false,
+    days: [0, 6], // Sun, Sat
+  },
+];
+
+export const DEFAULT_TIMER: TimerState = {
+  durationSeconds: 300, // 5 minutes
+  remainingSeconds: 300,
+  endTime: null,
+  isRunning: false,
+  isCompleted: false,
+  label: '5m Timer',
+};
+
+export const DEFAULT_STOPWATCH: StopwatchState = {
+  accumulatedMs: 0,
+  startTime: null,
+  isRunning: false,
+  laps: [],
+};
+
+/**
+ * Loads alarms with safe schema validation.
+ */
+export function loadAlarms(): AlarmItem[] {
+  try {
+    const raw = localStorage.getItem(ALARMS_STORAGE_KEY);
+    if (!raw) return DEFAULT_ALARMS;
+
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return DEFAULT_ALARMS;
+
+    const validated: AlarmItem[] = [];
+    for (const item of parsed) {
+      if (
+        item &&
+        typeof item === 'object' &&
+        typeof item.id === 'string' &&
+        typeof item.time === 'string' &&
+        /^\d{2}:\d{2}$/.test(item.time)
+      ) {
+        validated.push({
+          id: item.id,
+          time: item.time,
+          label: typeof item.label === 'string' ? item.label.slice(0, 40) : 'Alarm',
+          enabled: Boolean(item.enabled),
+          days: Array.isArray(item.days)
+            ? item.days.filter((d: unknown) => typeof d === 'number' && d >= 0 && d <= 6)
+            : [],
+          snoozedUntil:
+            typeof item.snoozedUntil === 'number' && item.snoozedUntil > Date.now()
+              ? item.snoozedUntil
+              : null,
+          lastTriggeredDate:
+            typeof item.lastTriggeredDate === 'string' ? item.lastTriggeredDate : undefined,
+        });
+      }
+    }
+    return validated;
+  } catch {
+    return DEFAULT_ALARMS;
+  }
+}
+
+export function saveAlarms(alarms: AlarmItem[]) {
+  try {
+    localStorage.setItem(ALARMS_STORAGE_KEY, JSON.stringify(alarms));
+  } catch (err) {
+    console.warn('ClockDock: failed to persist alarms', err);
+  }
+}
+
+/**
+ * Loads countdown timer state, recalculating remaining duration if suspended across reload.
+ */
+export function loadTimerState(): TimerState {
+  try {
+    const raw = localStorage.getItem(TIMER_STORAGE_KEY);
+    if (!raw) return DEFAULT_TIMER;
+
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return DEFAULT_TIMER;
+
+    const durationSeconds =
+      typeof parsed.durationSeconds === 'number' && parsed.durationSeconds > 0
+        ? parsed.durationSeconds
+        : 300;
+
+    let remainingSeconds =
+      typeof parsed.remainingSeconds === 'number' && parsed.remainingSeconds >= 0
+        ? parsed.remainingSeconds
+        : durationSeconds;
+
+    let isRunning = Boolean(parsed.isRunning);
+    let isCompleted = Boolean(parsed.isCompleted);
+    let endTime = typeof parsed.endTime === 'number' ? parsed.endTime : null;
+
+    // If it was running when saved, reconstruct remaining time accurately from endTime
+    if (isRunning && endTime) {
+      const now = Date.now();
+      if (now >= endTime) {
+        remainingSeconds = 0;
+        isRunning = false;
+        isCompleted = true;
+        endTime = null;
+      } else {
+        remainingSeconds = Math.ceil((endTime - now) / 1000);
+      }
+    }
+
+    return {
+      durationSeconds,
+      remainingSeconds,
+      endTime,
+      isRunning,
+      isCompleted,
+      label: typeof parsed.label === 'string' ? parsed.label.slice(0, 30) : 'Timer',
+    };
+  } catch {
+    return DEFAULT_TIMER;
+  }
+}
+
+export function saveTimerState(timer: TimerState) {
+  try {
+    localStorage.setItem(TIMER_STORAGE_KEY, JSON.stringify(timer));
+  } catch (err) {
+    console.warn('ClockDock: failed to persist timer', err);
+  }
+}
+
+/**
+ * Loads stopwatch state, preserving accumulated time across page reloads.
+ */
+export function loadStopwatchState(): StopwatchState {
+  try {
+    const raw = localStorage.getItem(STOPWATCH_STORAGE_KEY);
+    if (!raw) return DEFAULT_STOPWATCH;
+
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return DEFAULT_STOPWATCH;
+
+    let accumulatedMs =
+      typeof parsed.accumulatedMs === 'number' && parsed.accumulatedMs >= 0
+        ? parsed.accumulatedMs
+        : 0;
+
+    let startTime = typeof parsed.startTime === 'number' ? parsed.startTime : null;
+    let isRunning = Boolean(parsed.isRunning);
+
+    // If it was running across reload, catch up accumulated time using epoch difference
+    if (isRunning && startTime) {
+      const delta = Date.now() - startTime;
+      if (delta > 0) {
+        accumulatedMs += delta;
+      }
+      startTime = Date.now();
+    }
+
+    const laps = Array.isArray(parsed.laps)
+      ? parsed.laps.filter(
+          (l: unknown) =>
+            l &&
+            typeof l === 'object' &&
+            typeof (l as { lapNumber: unknown }).lapNumber === 'number' &&
+            typeof (l as { overallTimeMs: unknown }).overallTimeMs === 'number' &&
+            typeof (l as { lapTimeMs: unknown }).lapTimeMs === 'number'
+        )
+      : [];
+
+    return {
+      accumulatedMs,
+      startTime,
+      isRunning,
+      laps,
+    };
+  } catch {
+    return DEFAULT_STOPWATCH;
+  }
+}
+
+export function saveStopwatchState(stopwatch: StopwatchState) {
+  try {
+    localStorage.setItem(STOPWATCH_STORAGE_KEY, JSON.stringify(stopwatch));
+  } catch (err) {
+    console.warn('ClockDock: failed to persist stopwatch', err);
+  }
 }

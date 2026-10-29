@@ -1,11 +1,24 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { ClockSettings, ClockFaceId } from './types';
+import {
+  ClockSettings,
+  ClockFaceId,
+  AlarmItem,
+  TimerState,
+  StopwatchState,
+  ActiveAlert,
+} from './types';
 import {
   loadSettings,
   saveSettings,
   resetSettings,
   computeEffectiveSleepMode,
   getNextScheduledTransition,
+  loadAlarms,
+  saveAlarms,
+  loadTimerState,
+  saveTimerState,
+  loadStopwatchState,
+  saveStopwatchState,
 } from './utils/storage';
 import {
   getColor,
@@ -13,6 +26,9 @@ import {
   CLOCK_COLORS,
   CLOCK_FACES,
 } from './utils/themes';
+import { evaluateAlarms } from './utils/alarms';
+import { soundEngine } from './utils/audio';
+import { sendLocalNotification } from './utils/notifications';
 import { StandByDigital } from './components/faces/StandByDigital';
 import { MinimalAnalog } from './components/faces/MinimalAnalog';
 import { RetroFlip } from './components/faces/RetroFlip';
@@ -24,7 +40,9 @@ import { ModernWorldClock } from './components/faces/ModernWorldClock';
 import { MatrixMinimal } from './components/faces/MatrixMinimal';
 import { BackgroundStudio } from './components/BackgroundStudio';
 import { SettingsSheet } from './components/SettingsSheet';
-import { Settings, Maximize2, Minimize2, Zap, RotateCw, Moon } from 'lucide-react';
+import { TimeToolsModal } from './components/tools/TimeToolsModal';
+import { ActiveAlertModal } from './components/tools/ActiveAlertModal';
+import { Settings, Maximize2, Minimize2, Zap, RotateCw, Moon, Bell } from 'lucide-react';
 
 const ALL_FACES: ClockFaceId[] = [
   'standby-digital',
@@ -42,6 +60,15 @@ export const App: React.FC = () => {
   // 1. Settings state (loaded & persisted to localStorage)
   const [settings, setSettings] = useState<ClockSettings>(() => loadSettings());
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
+  // --------------------------------------------------------------------------
+  // Phase 3: Time Tools State (Alarms, Countdown Timer, Stopwatch, Active Alerts)
+  // --------------------------------------------------------------------------
+  const [isTimeToolsOpen, setIsTimeToolsOpen] = useState(false);
+  const [alarms, setAlarms] = useState<AlarmItem[]>(() => loadAlarms());
+  const [timer, setTimer] = useState<TimerState>(() => loadTimerState());
+  const [stopwatch, setStopwatch] = useState<StopwatchState>(() => loadStopwatchState());
+  const [activeAlert, setActiveAlert] = useState<ActiveAlert | null>(null);
 
   // 2. High-precision live time
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
@@ -71,6 +98,49 @@ export const App: React.FC = () => {
     }, 2800);
   }, []);
 
+  // Update & persist alarms
+  const handleSaveAlarms = useCallback((nextAlarms: AlarmItem[]) => {
+    setAlarms(nextAlarms);
+    saveAlarms(nextAlarms);
+  }, []);
+
+  // Update & persist timer
+  const handleUpdateTimer = useCallback((partial: Partial<TimerState>) => {
+    setTimer((prev) => {
+      const next = { ...prev, ...partial };
+      saveTimerState(next);
+      return next;
+    });
+  }, []);
+
+  // Update & persist stopwatch
+  const handleUpdateStopwatch = useCallback((partial: Partial<StopwatchState>) => {
+    setStopwatch((prev) => {
+      const next = { ...prev, ...partial };
+      saveStopwatchState(next);
+      return next;
+    });
+  }, []);
+
+  // Alert actions (Dismiss & Snooze)
+  const handleDismissAlert = useCallback(() => {
+    soundEngine.stopAlarmLoop();
+    setActiveAlert(null);
+  }, []);
+
+  const handleSnoozeAlert = useCallback(() => {
+    soundEngine.stopAlarmLoop();
+    if (activeAlert?.alarmItem) {
+      const snoozedUntil = Date.now() + 9 * 60 * 1000; // +9 minutes
+      const updated = alarms.map((a) =>
+        a.id === activeAlert.alarmItem?.id ? { ...a, snoozedUntil } : a
+      );
+      handleSaveAlarms(updated);
+      showToast('Alarm snoozed for 9 minutes');
+    }
+    setActiveAlert(null);
+  }, [activeAlert, alarms, handleSaveAlarms, showToast]);
+
   // Update and persist settings
   const handleUpdateSettings = useCallback((partial: Partial<ClockSettings>) => {
     setSettings((prev) => {
@@ -97,10 +167,33 @@ export const App: React.FC = () => {
 
     animId = requestAnimationFrame(tick);
 
-    // Refresh immediately and re-request WakeLock when returning from background
+    // Refresh immediately, re-evaluate alarms/timer, and re-request WakeLock when returning from background
     const handleVisibilityChange = async () => {
       if (document.visibilityState === 'visible') {
-        setCurrentTime(new Date());
+        const now = new Date();
+        setCurrentTime(now);
+
+        // Immediate Alarm check after returning from background/suspension
+        const { triggeringAlarms, missedAlarms, updatedAlarms } = evaluateAlarms(alarms, now);
+        if (updatedAlarms !== alarms) {
+          handleSaveAlarms(updatedAlarms);
+        }
+        if (triggeringAlarms.length > 0 && !activeAlert) {
+          const target = triggeringAlarms[0];
+          soundEngine.startAlarmLoop();
+          sendLocalNotification(`Alarm: ${target.time}`, { body: target.label });
+          setActiveAlert({
+            type: 'alarm',
+            id: target.id,
+            title: target.time,
+            subtitle: target.label,
+            alarmItem: target,
+            timestamp: Date.now(),
+          });
+        }
+        if (missedAlarms.length > 0) {
+          showToast(`Missed alarm: ${missedAlarms[0].label} (${missedAlarms[0].time})`);
+        }
 
         // Reacquire screen wake lock if it was enabled
         if (wakeLockActive && 'wakeLock' in navigator) {
@@ -122,7 +215,83 @@ export const App: React.FC = () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current);
     };
-  }, [wakeLockActive]);
+  }, [wakeLockActive, alarms, activeAlert, handleSaveAlarms, showToast]);
+
+  // --------------------------------------------------------------------------
+  // Countdown Timer Background Accuracy Engine
+  // --------------------------------------------------------------------------
+  useEffect(() => {
+    if (!timer.isRunning || !timer.endTime) return;
+
+    const interval = window.setInterval(() => {
+      const now = Date.now();
+      if (now >= (timer.endTime || 0)) {
+        // Countdown reached zero!
+        handleUpdateTimer({
+          remainingSeconds: 0,
+          endTime: null,
+          isRunning: false,
+          isCompleted: true,
+        });
+
+        soundEngine.playTimerComplete();
+        sendLocalNotification(timer.label || 'Timer Complete', {
+          body: 'Countdown finished',
+        });
+        setActiveAlert({
+          type: 'timer',
+          id: 'timer-complete',
+          title: timer.label || 'Timer Complete',
+          subtitle: 'Countdown finished',
+          timestamp: Date.now(),
+        });
+      } else {
+        const left = Math.max(0, Math.ceil(((timer.endTime || now) - now) / 1000));
+        setTimer((prev) =>
+          prev.remainingSeconds === left ? prev : { ...prev, remainingSeconds: left }
+        );
+      }
+    }, 250);
+
+    return () => clearInterval(interval);
+  }, [timer.isRunning, timer.endTime, timer.label, handleUpdateTimer]);
+
+  // --------------------------------------------------------------------------
+  // Alarms Periodic Evaluation Engine
+  // --------------------------------------------------------------------------
+  useEffect(() => {
+    const checkAlarms = () => {
+      const now = new Date();
+      const { triggeringAlarms, missedAlarms, updatedAlarms } = evaluateAlarms(alarms, now);
+
+      if (updatedAlarms !== alarms) {
+        handleSaveAlarms(updatedAlarms);
+      }
+
+      if (triggeringAlarms.length > 0 && !activeAlert) {
+        const targetAlarm = triggeringAlarms[0];
+        soundEngine.startAlarmLoop();
+        sendLocalNotification(`Alarm: ${targetAlarm.time}`, {
+          body: targetAlarm.label,
+        });
+        setActiveAlert({
+          type: 'alarm',
+          id: targetAlarm.id,
+          title: targetAlarm.time,
+          subtitle: targetAlarm.label,
+          alarmItem: targetAlarm,
+          timestamp: Date.now(),
+        });
+      }
+
+      if (missedAlarms.length > 0) {
+        showToast(`Missed alarm: ${missedAlarms[0].label} (${missedAlarms[0].time})`);
+      }
+    };
+
+    const interval = window.setInterval(checkAlarms, 1000);
+    return () => clearInterval(interval);
+  }, [alarms, activeAlert, handleSaveAlarms, showToast]);
 
   // Smart Dock: Idle Activity Detector (fades controls after 3.5s of no interaction)
   const reportActivity = useCallback(() => {
@@ -381,6 +550,7 @@ export const App: React.FC = () => {
         return;
 
       if (e.key === 's' || e.key === 'S') setIsSettingsOpen((p) => !p);
+      else if (e.key === 't' || e.key === 'T') setIsTimeToolsOpen((p) => !p);
       else if (e.key === 'f' || e.key === 'F') toggleFullscreen();
       else if (e.key === 'n' || e.key === 'N') {
         handleToggleSleepManual();
@@ -467,9 +637,26 @@ export const App: React.FC = () => {
             reportActivity();
           }}
           className={`fixed safe-top safe-right z-40 flex items-center gap-2 transition-all duration-500 ${
-            controlsVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'
+            controlsVisible || activeAlert !== null ? 'opacity-100' : 'opacity-0 pointer-events-none'
           }`}
         >
+          {/* Time Tools (Alarms, Countdown Timer, Stopwatch) */}
+          <button
+            onClick={() => setIsTimeToolsOpen(true)}
+            className={`relative p-2.5 rounded-full border backdrop-blur-xl shadow-lg transition-all focus-visible:ring-2 focus-visible:ring-white ${
+              alarms.some((a) => a.enabled) || timer.isRunning || stopwatch.isRunning
+                ? 'border-emerald-400 bg-emerald-500/20 text-emerald-300 shadow-[0_0_15px_rgba(16,185,129,0.4)]'
+                : 'border-white/10 bg-black/40 text-zinc-400 hover:text-white'
+            }`}
+            title="Time Tools: Alarms, Timer, Stopwatch (T)"
+            aria-label="Open Time Tools"
+          >
+            <Bell className="w-4 h-4" />
+            {(alarms.some((a) => a.enabled) || timer.isRunning) && (
+              <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-emerald-400 ring-2 ring-black animate-pulse" />
+            )}
+          </button>
+
           {/* Adaptive Sleep Mode Quick Toggle */}
           <button
             onClick={handleToggleSleepManual}
@@ -736,6 +923,29 @@ export const App: React.FC = () => {
         onToggleSleepManual={handleToggleSleepManual}
         currentTime={currentTime}
         onShowToast={showToast}
+      />
+
+      {/* PHASE 3: TIME TOOLS MODAL (Alarms, Countdown Timer, Stopwatch) */}
+      <TimeToolsModal
+        isOpen={isTimeToolsOpen}
+        onClose={() => setIsTimeToolsOpen(false)}
+        alarms={alarms}
+        onSaveAlarms={handleSaveAlarms}
+        timer={timer}
+        onUpdateTimer={handleUpdateTimer}
+        stopwatch={stopwatch}
+        onUpdateStopwatch={handleUpdateStopwatch}
+        clockColor={effectiveColor}
+        is24Hour={settings.is24Hour}
+        onShowToast={showToast}
+      />
+
+      {/* PHASE 3: ACTIVE RINGING ALERT MODAL (Unmissable bedside overlay with Snooze/Dismiss) */}
+      <ActiveAlertModal
+        alert={activeAlert}
+        onDismiss={handleDismissAlert}
+        onSnooze={handleSnoozeAlert}
+        clockColor={effectiveColor}
       />
     </div>
   );

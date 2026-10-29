@@ -467,6 +467,17 @@ export const SettingsSheet: React.FC<SettingsSheetProps> = ({
                   </>
                 )}
               </div>
+
+              {/* Android APK Direct Download Badge */}
+              <a
+                href="/clockdock.apk"
+                download="ClockDock.apk"
+                className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border border-sky-500/30 bg-sky-500/10 text-sky-300 hover:bg-sky-500/20 hover:border-sky-500/50 transition-colors"
+                title="Download ClockDock Android APK (Direct Install)"
+              >
+                <Download className="w-3 h-3 text-sky-400" />
+                <span>Download APK</span>
+              </a>
             </div>
             <p className="text-xs text-zinc-400 mt-1">
               Clock Design Studio, visual presets, cinematic transitions & adaptive sleep mode

@@ -23,3 +23,8 @@ dist-ssr
 *.sln
 *.sw?
 .vercel
+*.apk
+!public/clockdock.apk
+android/local.properties
+.gradle
+

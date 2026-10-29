@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">ClockDock</string>
+    <string name="title_activity_main">ClockDock</string>
+    <string name="package_name">com.clockdock.app</string>
+    <string name="custom_url_scheme">com.clockdock.app</string>
+</resources>

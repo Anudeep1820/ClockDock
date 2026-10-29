@@ -209,18 +209,27 @@ export const App: React.FC = () => {
     showToast('Defaults restored');
   }, [showToast]);
 
-  // Live Clock Tick & Visibility Change recovery
+  // 1. Dedicated Live Clock Tick Loop (runs continuously with clean cancellation on unmount)
   useEffect(() => {
     let animId: number;
+    let isRunning = true;
 
     const tick = () => {
+      if (!isRunning) return;
       setCurrentTime(new Date());
       animId = requestAnimationFrame(tick);
     };
 
     animId = requestAnimationFrame(tick);
 
-    // Refresh immediately, re-evaluate alarms/timer, and re-request WakeLock when returning from background
+    return () => {
+      isRunning = false;
+      cancelAnimationFrame(animId);
+    };
+  }, []);
+
+  // 2. Visibility Change recovery, screen WakeLock, and background alarms catch-up
+  useEffect(() => {
     const handleVisibilityChange = async () => {
       if (document.visibilityState === 'visible') {
         const now = new Date();
@@ -269,7 +278,6 @@ export const App: React.FC = () => {
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
-      cancelAnimationFrame(animId);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current);
     };
@@ -495,11 +503,21 @@ export const App: React.FC = () => {
 
   // Touch Swipe to switch faces (iOS StandBy behavior)
   const handleTouchStart = (e: React.TouchEvent) => {
+    if (isSettingsOpen || isTimeToolsOpen || activeAlert) {
+      touchStartX.current = null;
+      touchStartY.current = null;
+      return;
+    }
     touchStartX.current = e.touches[0].clientX;
     touchStartY.current = e.touches[0].clientY;
   };
 
   const handleTouchEnd = (e: React.TouchEvent) => {
+    if (isSettingsOpen || isTimeToolsOpen || activeAlert) {
+      touchStartX.current = null;
+      touchStartY.current = null;
+      return;
+    }
     if (touchStartX.current === null || touchStartY.current === null) return;
     const deltaX = e.changedTouches[0].clientX - touchStartX.current;
     const deltaY = e.changedTouches[0].clientY - touchStartY.current;
@@ -636,7 +654,7 @@ export const App: React.FC = () => {
 
   return (
     <div
-      className="relative w-screen h-[100dvh] overflow-hidden overscroll-none select-none touch-none flex items-center justify-center bg-black"
+      className="relative w-screen h-[100dvh] overflow-hidden overscroll-none select-none flex items-center justify-center bg-black"
       style={{
         filter: `brightness(${effectiveDimmer})`,
         transition: 'filter 0.5s ease',
@@ -644,6 +662,13 @@ export const App: React.FC = () => {
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
       onClick={reportActivity}
+      onContextMenu={(e) => {
+        const target = e.target as HTMLElement | null;
+        if (target && target.closest('input, textarea, select, [contenteditable="true"], .allow-select')) {
+          return;
+        }
+        e.preventDefault();
+      }}
     >
       {/* 1. ANIMATED BACKGROUND STUDIO LAYER */}
       <BackgroundStudio
@@ -828,7 +853,7 @@ export const App: React.FC = () => {
         </div>
 
         {/* MAIN CLOCK DISPLAY — Renders all 9 functional clock faces with Phase 2 transitions */}
-        <main className="w-full h-full flex items-center justify-center overflow-hidden">
+        <main className="w-full h-full flex items-center justify-center overflow-hidden touch-none">
           <div className={`w-full h-full flex items-center justify-center ${getTransitionClasses()}`}>
             {activeFace === 'standby-digital' && (
               <StandByDigital

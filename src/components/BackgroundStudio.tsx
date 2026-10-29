@@ -112,9 +112,13 @@ export const BackgroundStudio: React.FC<BackgroundStudioProps> = ({
       });
     }
 
+    let isRunning = true;
+
     const render = () => {
+      if (!isRunning) return;
+
       if (document.hidden) {
-        animId = requestAnimationFrame(render);
+        // Pause animation when tab or window is hidden to save battery & CPU
         return;
       }
 
@@ -150,10 +154,20 @@ export const BackgroundStudio: React.FC<BackgroundStudioProps> = ({
       animId = requestAnimationFrame(render);
     };
 
+    const handleVisibility = () => {
+      if (!document.hidden && isRunning) {
+        cancelAnimationFrame(animId);
+        animId = requestAnimationFrame(render);
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibility);
     animId = requestAnimationFrame(render);
 
     return () => {
+      isRunning = false;
       cancelAnimationFrame(animId);
+      document.removeEventListener('visibilitychange', handleVisibility);
       window.removeEventListener('resize', handleResize);
     };
   }, [themeId, effectiveAnimated, speedMultiplier, opacityFactor, particleCount]);

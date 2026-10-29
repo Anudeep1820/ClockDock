@@ -1,0 +1,20 @@
+{
+  "id": "/",
+  "name": "ClockDock — Premium StandBy Clock & Screensaver",
+  "short_name": "ClockDock",
+  "description": "Premium, distraction-free bedside clock and screensaver inspired by iPhone StandBy mode",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#000000",
+  "theme_color": "#000000",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

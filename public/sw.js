@@ -1,33 +1,60 @@
-// ClockDock Service Worker — Offline PWA Support
-const CACHE_NAME = 'clockdock-v3-cache';
+// ClockDock Service Worker — Offline PWA Support (v4)
+const CACHE_NAME = 'clockdock-v4-cache';
 
 // Core assets to precache on install
 const PRECACHE_ASSETS = [
   '/',
   '/index.html',
   '/manifest.webmanifest',
+  '/manifest.json',
   '/icon.svg',
 ];
 
-// Install event: cache core shell assets
+// Install event: cache core shell assets and discover bundle assets from /index.html
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(PRECACHE_ASSETS);
-    }).then(() => self.skipWaiting())
+    caches
+      .open(CACHE_NAME)
+      .then(async (cache) => {
+        // 1. Precache known shell assets
+        await cache.addAll(PRECACHE_ASSETS);
+
+        // 2. Dynamically parse /index.html to extract and precache generated JS/CSS bundles
+        try {
+          const res = await fetch('/index.html');
+          if (res && res.status === 200) {
+            const html = await res.text();
+            const bundleRegex = /(?:src|href)="(\/assets\/[^"]+\.(?:js|css))"/g;
+            const discoveredAssets = new Set();
+            let match;
+            while ((match = bundleRegex.exec(html)) !== null) {
+              discoveredAssets.add(match[1]);
+            }
+            if (discoveredAssets.size > 0) {
+              await cache.addAll(Array.from(discoveredAssets));
+            }
+          }
+        } catch {
+          // If fetching index.html fails during install (e.g. offline re-install), proceed with precached assets
+        }
+      })
+      .then(() => self.skipWaiting())
   );
 });
 
 // Activate event: clean up outdated caches
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames
-          .filter((name) => name !== CACHE_NAME)
-          .map((name) => caches.delete(name))
-      );
-    }).then(() => self.clients.claim())
+    caches
+      .keys()
+      .then((cacheNames) => {
+        return Promise.all(
+          cacheNames
+            .filter((name) => name !== CACHE_NAME)
+            .map((name) => caches.delete(name))
+        );
+      })
+      .then(() => self.clients.claim())
   );
 });
 
@@ -35,7 +62,7 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
-  // Ignore non-GET requests or chrome-extension URLs
+  // Ignore non-GET requests or browser extension URLs
   if (event.request.method !== 'GET' || !url.protocol.startsWith('http')) {
     return;
   }
@@ -54,11 +81,14 @@ self.addEventListener('fetch', (event) => {
           return response;
         })
         .catch(async () => {
-          // If offline, return cached index.html
+          // If offline, return cached page or fallback to /index.html
           const cached = await caches.match(event.request);
           if (cached) return cached;
           const fallback = await caches.match('/index.html');
-          return fallback || new Response('Offline', { status: 503, headers: { 'Content-Type': 'text/plain' } });
+          return (
+            fallback ||
+            new Response('Offline', { status: 503, headers: { 'Content-Type': 'text/plain' } })
+          );
         })
     );
     return;
@@ -95,7 +125,7 @@ self.addEventListener('fetch', (event) => {
           return networkResponse;
         })
         .catch(() => {
-          // If an image/font fails offline and has no cache, return empty or fallback
+          // If an asset fails offline and has no cache, return 408
           return new Response('', { status: 408, headers: { 'Content-Type': 'text/plain' } });
         });
     })

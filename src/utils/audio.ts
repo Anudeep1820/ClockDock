@@ -4,6 +4,7 @@
 class SoundEngine {
   private ctx: AudioContext | null = null;
   private alarmLoopTimer: number | null = null;
+  private pendingTimeouts: Set<number> = new Set();
   private isMuted: boolean = false;
 
   private getContext(): AudioContext | null {
@@ -96,10 +97,14 @@ class SoundEngine {
     this.playChimeTone(880.0, 0.9, 0.0, 0.35);
     this.playChimeTone(1108.73, 1.4, 0.22, 0.4);
     // Secondary confirmation pulse after 700ms
-    setTimeout(() => {
-      this.playChimeTone(880.0, 0.9, 0.0, 0.35);
-      this.playChimeTone(1108.73, 1.5, 0.22, 0.4);
+    const timerId = window.setTimeout(() => {
+      this.pendingTimeouts.delete(timerId);
+      if (!this.isMuted) {
+        this.playChimeTone(880.0, 0.9, 0.0, 0.35);
+        this.playChimeTone(1108.73, 1.5, 0.22, 0.4);
+      }
     }, 700);
+    this.pendingTimeouts.add(timerId);
   }
 
   // Subtle tap sound for buttons/laps
@@ -141,6 +146,8 @@ class SoundEngine {
       clearInterval(this.alarmLoopTimer);
       this.alarmLoopTimer = null;
     }
+    this.pendingTimeouts.forEach((id) => clearTimeout(id));
+    this.pendingTimeouts.clear();
   }
 
   public setMuted(muted: boolean) {

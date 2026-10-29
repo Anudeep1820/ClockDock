@@ -1,4 +1,14 @@
-import { ClockSettings, UserPreset, AlarmItem, TimerState, StopwatchState, WeatherData } from '../types';
+import {
+  ClockSettings,
+  UserPreset,
+  AlarmItem,
+  TimerState,
+  StopwatchState,
+  WeatherData,
+  ClockFaceId,
+  BackgroundThemeId,
+  ClockColorId,
+} from '../types';
 
 export const BUILT_IN_PRESETS: UserPreset[] = [
   {
@@ -161,14 +171,54 @@ export const DEFAULT_SETTINGS: ClockSettings = {
 const STORAGE_KEY = 'clockdock_v3_settings';
 const PRESETS_STORAGE_KEY = 'clockdock_v3_presets';
 
+// In-memory fallback caches if localStorage is unavailable or throws QuotaExceededError
+let memorySettingsCache: ClockSettings | null = null;
+let memoryPresetsCache: UserPreset[] | null = null;
+
+const VALID_FACES: ClockFaceId[] = [
+  'standby-digital',
+  'minimal-analog',
+  'retro-flip',
+  'ambient-glow',
+  'neon-cyber',
+  'premium-editorial',
+  'aurora-digital',
+  'modern-world',
+  'matrix-minimal',
+];
+
+const VALID_BG_THEMES: BackgroundThemeId[] = [
+  'oled-black',
+  'aurora-borealis',
+  'liquid-gradient',
+  'cosmic-night',
+  'ambient-particles',
+  'sunset-horizon',
+  'deep-ocean',
+  'midnight-nebula',
+  'soft-glow',
+  'custom-color',
+];
+
+const VALID_CLOCK_COLORS: ClockColorId[] = [
+  'warm-white',
+  'crimson',
+  'sunset-amber',
+  'electric-cyan',
+  'mint',
+  'lavender',
+  'golden-amber',
+];
+
 export function loadSettings(): ClockSettings {
   if (typeof window === 'undefined') return DEFAULT_SETTINGS;
 
   try {
     const raw = localStorage.getItem(STORAGE_KEY) || localStorage.getItem('clockdock_v2_settings');
-    if (!raw) return DEFAULT_SETTINGS;
+    if (!raw) return memorySettingsCache || DEFAULT_SETTINGS;
 
     const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return memorySettingsCache || DEFAULT_SETTINGS;
 
     // Map any legacy theme IDs to new background theme IDs if needed
     let bgTheme = parsed.bgTheme || DEFAULT_SETTINGS.bgTheme;
@@ -179,34 +229,70 @@ export function loadSettings(): ClockSettings {
     if (bgTheme === 'warm-ember') bgTheme = 'sunset-horizon';
     if (bgTheme === 'aurora') bgTheme = 'aurora-borealis';
 
+    // Validate face against known functional clock faces
+    const face: ClockFaceId = VALID_FACES.includes(parsed.face)
+      ? parsed.face
+      : DEFAULT_SETTINGS.face;
+
+    // Validate background theme
+    const safeBgTheme: BackgroundThemeId = VALID_BG_THEMES.includes(bgTheme)
+      ? bgTheme
+      : DEFAULT_SETTINGS.bgTheme;
+
+    // Validate clock color
+    const clockColor: ClockColorId = VALID_CLOCK_COLORS.includes(parsed.clockColor)
+      ? parsed.clockColor
+      : DEFAULT_SETTINGS.clockColor;
+
+    // Validate dimmer levels
+    const dimmer =
+      typeof parsed.dimmer === 'number' && !isNaN(parsed.dimmer)
+        ? Math.min(1.0, Math.max(0.05, parsed.dimmer))
+        : DEFAULT_SETTINGS.dimmer;
+
     // Backward-compatible migration from legacy nightMode fields to sleepMode fields
     const sleepModeEnabled =
       parsed.sleepModeEnabled !== undefined
-        ? parsed.sleepModeEnabled
+        ? Boolean(parsed.sleepModeEnabled)
         : parsed.nightModeEnabled !== undefined
-        ? parsed.nightModeEnabled
+        ? Boolean(parsed.nightModeEnabled)
         : DEFAULT_SETTINGS.sleepModeEnabled;
 
-    const sleepStart = parsed.sleepStart || parsed.nightModeStart || DEFAULT_SETTINGS.sleepStart;
-    const sleepEnd = parsed.sleepEnd || parsed.nightModeEnd || DEFAULT_SETTINGS.sleepEnd;
-    const sleepTint = parsed.sleepTint || parsed.nightModeTint || DEFAULT_SETTINGS.sleepTint;
+    const sleepStart =
+      typeof parsed.sleepStart === 'string' && /^\d{2}:\d{2}$/.test(parsed.sleepStart)
+        ? parsed.sleepStart
+        : parsed.nightModeStart || DEFAULT_SETTINGS.sleepStart;
+
+    const sleepEnd =
+      typeof parsed.sleepEnd === 'string' && /^\d{2}:\d{2}$/.test(parsed.sleepEnd)
+        ? parsed.sleepEnd
+        : parsed.nightModeEnd || DEFAULT_SETTINGS.sleepEnd;
+
+    const sleepTint: ClockColorId = VALID_CLOCK_COLORS.includes(parsed.sleepTint)
+      ? parsed.sleepTint
+      : VALID_CLOCK_COLORS.includes(parsed.nightModeTint)
+      ? parsed.nightModeTint
+      : DEFAULT_SETTINGS.sleepTint;
+
     const sleepDimmer =
-      parsed.sleepDimmer !== undefined
-        ? parsed.sleepDimmer
-        : parsed.nightModeDimmer !== undefined
-        ? parsed.nightModeDimmer
+      typeof parsed.sleepDimmer === 'number' && !isNaN(parsed.sleepDimmer)
+        ? Math.min(1.0, Math.max(0.05, parsed.sleepDimmer))
+        : typeof parsed.nightModeDimmer === 'number' && !isNaN(parsed.nightModeDimmer)
+        ? Math.min(1.0, Math.max(0.05, parsed.nightModeDimmer))
         : DEFAULT_SETTINGS.sleepDimmer;
+
     const sleepHideSeconds =
       parsed.sleepHideSeconds !== undefined
-        ? parsed.sleepHideSeconds
+        ? Boolean(parsed.sleepHideSeconds)
         : parsed.nightModeSuppressSeconds !== undefined
-        ? parsed.nightModeSuppressSeconds
+        ? Boolean(parsed.nightModeSuppressSeconds)
         : DEFAULT_SETTINGS.sleepHideSeconds;
+
     const sleepMinimalDate =
       parsed.sleepMinimalDate !== undefined
-        ? parsed.sleepMinimalDate
+        ? Boolean(parsed.sleepMinimalDate)
         : parsed.nightModeMinimalDate !== undefined
-        ? parsed.nightModeMinimalDate
+        ? Boolean(parsed.nightModeMinimalDate)
         : DEFAULT_SETTINGS.sleepMinimalDate;
 
     const showWeather =
@@ -215,7 +301,7 @@ export function loadSettings(): ClockSettings {
       parsed.weatherUnit === 'fahrenheit' ? 'fahrenheit' : 'celsius';
     const weatherCity =
       typeof parsed.weatherCity === 'string' && parsed.weatherCity.trim()
-        ? parsed.weatherCity
+        ? parsed.weatherCity.trim().slice(0, 50)
         : DEFAULT_SETTINGS.weatherCity;
     const weatherLatitude =
       typeof parsed.weatherLatitude === 'number' && !isNaN(parsed.weatherLatitude)
@@ -227,10 +313,13 @@ export function loadSettings(): ClockSettings {
         : DEFAULT_SETTINGS.weatherLongitude;
     const weatherUseGeolocation = Boolean(parsed.weatherUseGeolocation);
 
-    return {
+    const mergedSettings: ClockSettings = {
       ...DEFAULT_SETTINGS,
       ...parsed,
-      bgTheme,
+      face,
+      bgTheme: safeBgTheme,
+      clockColor,
+      dimmer,
       sleepModeEnabled,
       sleepStart,
       sleepEnd,
@@ -245,13 +334,17 @@ export function loadSettings(): ClockSettings {
       weatherLongitude,
       weatherUseGeolocation,
     };
+
+    memorySettingsCache = mergedSettings;
+    return mergedSettings;
   } catch (err) {
     console.warn('Failed to load ClockDock settings from localStorage:', err);
-    return DEFAULT_SETTINGS;
+    return memorySettingsCache || DEFAULT_SETTINGS;
   }
 }
 
 export function saveSettings(settings: ClockSettings): void {
+  memorySettingsCache = settings;
   if (typeof window === 'undefined') return;
 
   try {
@@ -262,6 +355,7 @@ export function saveSettings(settings: ClockSettings): void {
 }
 
 export function resetSettings(): ClockSettings {
+  memorySettingsCache = { ...DEFAULT_SETTINGS };
   if (typeof window !== 'undefined') {
     try {
       localStorage.removeItem(STORAGE_KEY);
@@ -279,16 +373,19 @@ export function loadUserPresets(): UserPreset[] {
 
   try {
     const raw = localStorage.getItem(PRESETS_STORAGE_KEY);
-    if (!raw) return BUILT_IN_PRESETS;
+    if (!raw) return memoryPresetsCache || BUILT_IN_PRESETS;
     const userCustom: UserPreset[] = JSON.parse(raw);
-    return [...BUILT_IN_PRESETS, ...userCustom];
+    const combined = [...BUILT_IN_PRESETS, ...(Array.isArray(userCustom) ? userCustom : [])];
+    memoryPresetsCache = combined;
+    return combined;
   } catch (err) {
     console.warn('Failed to load user presets from localStorage:', err);
-    return BUILT_IN_PRESETS;
+    return memoryPresetsCache || BUILT_IN_PRESETS;
   }
 }
 
 export function saveUserPresets(presets: UserPreset[]): void {
+  memoryPresetsCache = presets;
   if (typeof window === 'undefined') return;
 
   try {

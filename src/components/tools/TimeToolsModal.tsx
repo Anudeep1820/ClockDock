@@ -365,7 +365,7 @@ export const TimeToolsModal: React.FC<TimeToolsModalProps> = ({
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="relative flex flex-col w-full max-w-xl max-h-[92vh] bg-zinc-950/95 border border-white/10 rounded-3xl shadow-2xl overflow-hidden">
+      <div className="relative flex flex-col w-full max-w-xl max-h-[92vh] bg-zinc-950/95 border border-white/10 rounded-3xl shadow-2xl overflow-hidden select-text touch-auto">
         {/* MODAL HEADER */}
         <div className="flex items-center justify-between px-6 py-4.5 border-b border-white/10 bg-zinc-900/50">
           <div className="flex items-center gap-2.5">

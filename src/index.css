@@ -24,6 +24,20 @@
     -webkit-user-select: none;
     background-color: #000000;
   }
+
+  /* Allow text selection and native interactions in form controls, code blocks, and modals */
+  input,
+  textarea,
+  select,
+  [contenteditable="true"],
+  .allow-select {
+    user-select: text !important;
+    -webkit-user-select: text !important;
+  }
+
+  .touch-auto {
+    touch-action: auto !important;
+  }
 }
 
 /* Safe-area insets for modern mobile displays & notches */

@@ -429,7 +429,7 @@ export const SettingsSheet: React.FC<SettingsSheetProps> = ({
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-2xl rounded-t-3xl sm:rounded-3xl bg-[#0b0c10]/95 border border-white/10 p-4 sm:p-6 shadow-2xl max-h-[92dvh] overflow-y-auto no-scrollbar flex flex-col gap-5"
+        className="w-full max-w-2xl rounded-t-3xl sm:rounded-3xl bg-[#0b0c10]/95 border border-white/10 p-4 sm:p-6 shadow-2xl max-h-[92dvh] overflow-y-auto no-scrollbar flex flex-col gap-5 select-text touch-auto"
       >
         {/* Header with Offline Status & Sleep Mode indicator */}
         <div className="flex items-center justify-between border-b border-white/10 pb-3.5">

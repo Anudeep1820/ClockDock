@@ -1,5 +1,13 @@
 import React from 'react';
-import { ClockColor, TypographyStyle, NumeralSize, GlowStrength } from '../../types';
+import {
+  ClockColor,
+  TypographyStyle,
+  NumeralSize,
+  NumeralSpacing,
+  ClockAlignment,
+  GlowStrength,
+  ShadowIntensity,
+} from '../../types';
 
 interface NeonCyberProps {
   time: Date;
@@ -9,7 +17,10 @@ interface NeonCyberProps {
   showDate: boolean;
   showSeconds: boolean;
   numeralSize?: NumeralSize;
+  numeralSpacing?: NumeralSpacing;
+  clockAlignment?: ClockAlignment;
   glowStrength?: GlowStrength;
+  shadowIntensity?: ShadowIntensity;
   onCycleColor?: () => void;
 }
 
@@ -21,7 +32,10 @@ export const NeonCyber: React.FC<NeonCyberProps> = ({
   showDate,
   showSeconds,
   numeralSize = 'large',
+  numeralSpacing = 'normal',
+  clockAlignment = 'center',
   glowStrength = 'subtle',
+  shadowIntensity = 'soft',
   onCycleColor,
 }) => {
   let hoursNum = time.getHours();
@@ -46,6 +60,16 @@ export const NeonCyber: React.FC<NeonCyberProps> = ({
       ? 'text-8xl sm:text-9xl md:text-[11rem]'
       : 'text-7xl sm:text-8xl md:text-9xl';
 
+  const letterSpacingStyle =
+    numeralSpacing === 'tight' ? '-0.04em' : numeralSpacing === 'wide' ? '0.12em' : '0.04em';
+
+  const alignmentClass =
+    clockAlignment === 'top'
+      ? 'justify-start pt-14 sm:pt-20'
+      : clockAlignment === 'bottom'
+      ? 'justify-end pb-16 sm:pb-24'
+      : 'justify-center';
+
   const glowBlur =
     glowStrength === 'off'
       ? 'none'
@@ -53,14 +77,25 @@ export const NeonCyber: React.FC<NeonCyberProps> = ({
       ? `0 0 45px ${color.glow}, 0 0 15px ${color.primary}`
       : `0 0 25px ${color.glow}`;
 
+  const boxShadow =
+    shadowIntensity === 'none'
+      ? 'none'
+      : shadowIntensity === 'deep'
+      ? `0 0 45px ${color.dimGlow}, inset 0 0 25px ${color.dimGlow}, 0 20px 40px rgba(0,0,0,0.9)`
+      : `0 0 30px ${color.dimGlow}, inset 0 0 15px ${color.dimGlow}`;
+
   return (
     <div
       onClick={onCycleColor}
-      className="relative flex flex-col items-center justify-center w-full h-full select-none cursor-pointer p-4 sm:p-6 transition-all duration-500 font-cyber"
+      className={`relative flex flex-col items-center w-full h-full select-none cursor-pointer p-4 sm:p-6 transition-all duration-500 font-cyber ${alignmentClass}`}
     >
       {/* Top Cyber Status Bar */}
       {showDate && (
-        <div className="absolute top-5 sm:top-8 md:top-12 flex items-center gap-2 sm:gap-3 transition-all">
+        <div
+          className={`flex items-center gap-2 sm:gap-3 transition-all mb-3 ${
+            clockAlignment === 'top' ? 'order-first mb-3' : clockAlignment === 'bottom' ? 'mb-4' : 'absolute top-5 sm:top-8 md:top-12'
+          }`}
+        >
           <div
             className="flex items-center gap-2 px-3 py-1 rounded-sm border backdrop-blur-md shadow-lg -skew-x-12"
             style={{
@@ -98,17 +133,17 @@ export const NeonCyber: React.FC<NeonCyberProps> = ({
       )}
 
       {/* OVERSIZED FUTURISTIC NUMERALS */}
-      <div className="flex items-center justify-center leading-none tracking-tight -skew-x-6">
+      <div
+        className="flex items-center justify-center leading-none tracking-tight -skew-x-6"
+        style={{ letterSpacing: letterSpacingStyle }}
+      >
         {/* Hours Digit Box */}
         <div
           className="relative px-3 sm:px-6 py-2 sm:py-4 rounded-xl border backdrop-blur-md transition-all duration-500"
           style={{
             borderColor: `${color.primary}50`,
             backgroundColor: 'rgba(5, 5, 10, 0.45)',
-            boxShadow:
-              glowStrength !== 'off'
-                ? `0 0 35px ${color.dimGlow}, inset 0 0 20px ${color.dimGlow}`
-                : 'none',
+            boxShadow,
           }}
         >
           {/* Corner brackets */}
@@ -156,10 +191,7 @@ export const NeonCyber: React.FC<NeonCyberProps> = ({
           style={{
             borderColor: `${color.secondary}50`,
             backgroundColor: 'rgba(5, 5, 10, 0.45)',
-            boxShadow:
-              glowStrength !== 'off'
-                ? `0 0 35px ${color.dimGlow}, inset 0 0 20px ${color.dimGlow}`
-                : 'none',
+            boxShadow,
           }}
         >
           {/* Corner brackets */}
@@ -200,7 +232,11 @@ export const NeonCyber: React.FC<NeonCyberProps> = ({
       </div>
 
       {/* Cyber Grid status footer */}
-      <div className="absolute bottom-5 sm:bottom-8 flex items-center gap-4 text-[9px] sm:text-[10px] text-zinc-500 font-mono tracking-widest">
+      <div
+        className={`flex items-center gap-4 text-[9px] sm:text-[10px] text-zinc-500 font-mono tracking-widest ${
+          clockAlignment === 'bottom' ? 'order-last mt-3' : 'absolute bottom-5 sm:bottom-8'
+        }`}
+      >
         <span>CORE // ONLINE</span>
         <span>•</span>
         <span style={{ color: color.primary }}>FPS // 60.0</span>

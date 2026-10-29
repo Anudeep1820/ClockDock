@@ -1,4 +1,4 @@
-import { ClockSettings, UserPreset, SleepManualOverride } from '../types';
+import { ClockSettings, UserPreset } from '../types';
 
 export const BUILT_IN_PRESETS: UserPreset[] = [
   {
@@ -14,6 +14,10 @@ export const BUILT_IN_PRESETS: UserPreset[] = [
     bgIntensity: 'medium',
     glowStrength: 'subtle',
     numeralSize: 'large',
+    numeralSpacing: 'normal',
+    clockAlignment: 'center',
+    shadowIntensity: 'soft',
+    transitionStyle: 'smooth',
   },
   {
     id: 'preset-neon-dreams',
@@ -28,6 +32,10 @@ export const BUILT_IN_PRESETS: UserPreset[] = [
     bgIntensity: 'high',
     glowStrength: 'vibrant',
     numeralSize: 'large',
+    numeralSpacing: 'wide',
+    clockAlignment: 'center',
+    shadowIntensity: 'deep',
+    transitionStyle: 'slide',
   },
   {
     id: 'preset-aurora-night',
@@ -42,6 +50,10 @@ export const BUILT_IN_PRESETS: UserPreset[] = [
     bgIntensity: 'medium',
     glowStrength: 'subtle',
     numeralSize: 'large',
+    numeralSpacing: 'normal',
+    clockAlignment: 'center',
+    shadowIntensity: 'soft',
+    transitionStyle: 'scale',
   },
   {
     id: 'preset-warm-sunset',
@@ -56,6 +68,10 @@ export const BUILT_IN_PRESETS: UserPreset[] = [
     bgIntensity: 'medium',
     glowStrength: 'subtle',
     numeralSize: 'standard',
+    numeralSpacing: 'normal',
+    clockAlignment: 'center',
+    shadowIntensity: 'deep',
+    transitionStyle: 'smooth',
   },
   {
     id: 'preset-pure-black',
@@ -70,13 +86,19 @@ export const BUILT_IN_PRESETS: UserPreset[] = [
     bgIntensity: 'low',
     glowStrength: 'subtle',
     numeralSize: 'large',
+    numeralSpacing: 'normal',
+    clockAlignment: 'center',
+    shadowIntensity: 'soft',
+    transitionStyle: 'minimal',
   },
 ];
 
 export const DEFAULT_SETTINGS: ClockSettings = {
-  // Daytime Appearance Defaults
+  // Daytime Appearance Defaults (Design Studio)
   face: 'standby-digital',
   clockColor: 'sunset-amber',
+  customClockColor: '',
+  customClockColorSecondary: '',
   fontStyle: 'modern',
   is24Hour: false,
   showDate: true,
@@ -84,7 +106,11 @@ export const DEFAULT_SETTINGS: ClockSettings = {
   dimmer: 1.0,
   forcedLandscape: false,
   numeralSize: 'large',
+  numeralSpacing: 'normal',
+  clockAlignment: 'center',
   glowStrength: 'subtle',
+  shadowIntensity: 'soft',
+  transitionStyle: 'smooth',
 
   // Background Studio Defaults
   bgTheme: 'oled-black',

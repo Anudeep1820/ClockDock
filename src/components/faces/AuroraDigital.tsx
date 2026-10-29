@@ -1,5 +1,13 @@
 import React from 'react';
-import { ClockColor, TypographyStyle, NumeralSize, GlowStrength } from '../../types';
+import {
+  ClockColor,
+  TypographyStyle,
+  NumeralSize,
+  NumeralSpacing,
+  ClockAlignment,
+  GlowStrength,
+  ShadowIntensity,
+} from '../../types';
 
 interface AuroraDigitalProps {
   time: Date;
@@ -9,7 +17,10 @@ interface AuroraDigitalProps {
   showDate: boolean;
   showSeconds: boolean;
   numeralSize?: NumeralSize;
+  numeralSpacing?: NumeralSpacing;
+  clockAlignment?: ClockAlignment;
   glowStrength?: GlowStrength;
+  shadowIntensity?: ShadowIntensity;
   onCycleColor?: () => void;
 }
 
@@ -21,7 +32,10 @@ export const AuroraDigital: React.FC<AuroraDigitalProps> = ({
   showDate,
   showSeconds,
   numeralSize = 'large',
+  numeralSpacing = 'normal',
+  clockAlignment = 'center',
   glowStrength = 'subtle',
+  shadowIntensity = 'soft',
   onCycleColor,
 }) => {
   let hoursNum = time.getHours();
@@ -46,17 +60,29 @@ export const AuroraDigital: React.FC<AuroraDigitalProps> = ({
       ? 'text-8xl sm:text-[10rem] md:text-[12rem]'
       : 'text-7xl sm:text-9xl md:text-[10rem]';
 
+  const letterSpacingStyle =
+    numeralSpacing === 'tight' ? '-0.06em' : numeralSpacing === 'wide' ? '0.04em' : '-0.02em';
+
+  const alignmentClass =
+    clockAlignment === 'top'
+      ? 'justify-start pt-14 sm:pt-20'
+      : clockAlignment === 'bottom'
+      ? 'justify-end pb-16 sm:pb-24'
+      : 'justify-center';
+
   const glowBox =
     glowStrength === 'off'
-      ? 'none'
+      ? shadowIntensity === 'none'
+        ? 'none'
+        : '0 20px 40px rgba(0,0,0,0.6)'
       : glowStrength === 'vibrant'
-      ? `0 30px 60px -12px rgba(0,0,0,0.8), 0 0 50px ${color.glow}`
+      ? `0 30px 60px -12px rgba(0,0,0,0.8), 0 0 55px ${color.glow}`
       : `0 25px 50px -12px rgba(0,0,0,0.7), 0 0 25px ${color.dimGlow}`;
 
   return (
     <div
       onClick={onCycleColor}
-      className={`relative flex flex-col items-center justify-center w-full h-full p-4 sm:p-6 select-none cursor-pointer ${typography.className}`}
+      className={`relative flex flex-col items-center w-full h-full p-4 sm:p-6 select-none cursor-pointer transition-all duration-500 ${alignmentClass} ${typography.className}`}
     >
       {/* Floating Glassmorphic Aurora Card Container */}
       <div
@@ -84,7 +110,10 @@ export const AuroraDigital: React.FC<AuroraDigitalProps> = ({
         )}
 
         {/* Large Digits with Soft Gradient Flow */}
-        <div className="flex items-center justify-center leading-none tracking-tighter">
+        <div
+          className="flex items-center justify-center leading-none"
+          style={{ letterSpacing: letterSpacingStyle }}
+        >
           <span
             className={`font-black ${fontSizeClass} transition-all duration-500`}
             style={{

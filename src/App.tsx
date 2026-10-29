@@ -211,7 +211,7 @@ export const App: React.FC = () => {
   const effectiveBgTheme = isSleepModeActive ? settings.sleepBgTheme : settings.bgTheme;
   const effectiveColor = isSleepModeActive
     ? getColor(settings.sleepTint)
-    : getColor(settings.clockColor);
+    : getColor(settings.clockColor, settings.customClockColor, settings.customClockColorSecondary);
   const effectiveDimmer = isSleepModeActive ? settings.sleepDimmer : settings.dimmer;
   const effectiveShowSeconds =
     isSleepModeActive && settings.sleepHideSeconds ? false : settings.showSeconds;
@@ -223,6 +223,48 @@ export const App: React.FC = () => {
   const effectiveGlowStrength = isSleepModeActive
     ? settings.sleepGlowStrength
     : settings.glowStrength;
+
+  // --------------------------------------------------------------------------
+  // Cinematic Face Transitions (Phase 2)
+  // --------------------------------------------------------------------------
+  const [activeFace, setActiveFace] = useState<ClockFaceId>(settings.face);
+  const [isTransitioning, setIsTransitioning] = useState(false);
+
+  useEffect(() => {
+    if (settings.face !== activeFace) {
+      if (settings.transitionStyle === 'minimal' || settings.reduceMotion) {
+        setActiveFace(settings.face);
+        return;
+      }
+      setIsTransitioning(true);
+      const timer = window.setTimeout(() => {
+        setActiveFace(settings.face);
+        setIsTransitioning(false);
+      }, 180);
+      return () => window.clearTimeout(timer);
+    }
+  }, [settings.face, activeFace, settings.transitionStyle, settings.reduceMotion]);
+
+  const getTransitionClasses = () => {
+    if (settings.reduceMotion || settings.transitionStyle === 'minimal') {
+      return '';
+    }
+    switch (settings.transitionStyle) {
+      case 'slide':
+        return `transition-all duration-200 ease-out ${
+          isTransitioning ? 'opacity-0 translate-y-3' : 'opacity-100 translate-y-0'
+        }`;
+      case 'scale':
+        return `transition-all duration-200 ease-out ${
+          isTransitioning ? 'opacity-0 scale-95' : 'opacity-100 scale-100'
+        }`;
+      case 'smooth':
+      default:
+        return `transition-opacity duration-200 ease-out ${
+          isTransitioning ? 'opacity-0' : 'opacity-100'
+        }`;
+    }
+  };
 
   // Touch Swipe to switch faces (iOS StandBy behavior)
   const handleTouchStart = (e: React.TouchEvent) => {
@@ -527,126 +569,157 @@ export const App: React.FC = () => {
           })}
         </div>
 
-        {/* MAIN CLOCK DISPLAY — Renders all 9 functional clock faces */}
+        {/* MAIN CLOCK DISPLAY — Renders all 9 functional clock faces with Phase 2 transitions */}
         <main className="w-full h-full flex items-center justify-center overflow-hidden">
-          {settings.face === 'standby-digital' && (
-            <StandByDigital
-              time={currentTime}
-              color={effectiveColor}
-              typography={activeTypography}
-              is24Hour={settings.is24Hour}
-              showDate={effectiveShowDate}
-              showSeconds={effectiveShowSeconds}
-              numeralSize={settings.numeralSize}
-              glowStrength={effectiveGlowStrength}
-              onCycleColor={cycleColor}
-            />
-          )}
+          <div className={`w-full h-full flex items-center justify-center ${getTransitionClasses()}`}>
+            {activeFace === 'standby-digital' && (
+              <StandByDigital
+                time={currentTime}
+                color={effectiveColor}
+                typography={activeTypography}
+                is24Hour={settings.is24Hour}
+                showDate={effectiveShowDate}
+                showSeconds={effectiveShowSeconds}
+                numeralSize={settings.numeralSize}
+                numeralSpacing={settings.numeralSpacing}
+                clockAlignment={settings.clockAlignment}
+                shadowIntensity={settings.shadowIntensity}
+                glowStrength={effectiveGlowStrength}
+                onCycleColor={cycleColor}
+              />
+            )}
 
-          {settings.face === 'minimal-analog' && (
-            <MinimalAnalog
-              time={currentTime}
-              color={effectiveColor}
-              typography={activeTypography}
-              showDate={effectiveShowDate}
-              showSeconds={effectiveShowSeconds}
-              glowStrength={effectiveGlowStrength}
-              onCycleColor={cycleColor}
-            />
-          )}
+            {activeFace === 'minimal-analog' && (
+              <MinimalAnalog
+                time={currentTime}
+                color={effectiveColor}
+                typography={activeTypography}
+                showDate={effectiveShowDate}
+                showSeconds={effectiveShowSeconds}
+                clockAlignment={settings.clockAlignment}
+                shadowIntensity={settings.shadowIntensity}
+                glowStrength={effectiveGlowStrength}
+                onCycleColor={cycleColor}
+              />
+            )}
 
-          {settings.face === 'retro-flip' && (
-            <RetroFlip
-              time={currentTime}
-              color={effectiveColor}
-              typography={activeTypography}
-              is24Hour={settings.is24Hour}
-              showDate={effectiveShowDate}
-              showSeconds={effectiveShowSeconds}
-              onCycleColor={cycleColor}
-            />
-          )}
+            {activeFace === 'retro-flip' && (
+              <RetroFlip
+                time={currentTime}
+                color={effectiveColor}
+                typography={activeTypography}
+                is24Hour={settings.is24Hour}
+                showDate={effectiveShowDate}
+                showSeconds={effectiveShowSeconds}
+                numeralSpacing={settings.numeralSpacing}
+                clockAlignment={settings.clockAlignment}
+                shadowIntensity={settings.shadowIntensity}
+                onCycleColor={cycleColor}
+              />
+            )}
 
-          {settings.face === 'ambient-glow' && (
-            <AmbientGlow
-              time={currentTime}
-              color={effectiveColor}
-              typography={activeTypography}
-              is24Hour={settings.is24Hour}
-              showDate={effectiveShowDate}
-              showSeconds={effectiveShowSeconds}
-              numeralSize={settings.numeralSize}
-              glowStrength={effectiveGlowStrength}
-              onCycleColor={cycleColor}
-            />
-          )}
+            {activeFace === 'ambient-glow' && (
+              <AmbientGlow
+                time={currentTime}
+                color={effectiveColor}
+                typography={activeTypography}
+                is24Hour={settings.is24Hour}
+                showDate={effectiveShowDate}
+                showSeconds={effectiveShowSeconds}
+                numeralSize={settings.numeralSize}
+                numeralSpacing={settings.numeralSpacing}
+                clockAlignment={settings.clockAlignment}
+                shadowIntensity={settings.shadowIntensity}
+                glowStrength={effectiveGlowStrength}
+                onCycleColor={cycleColor}
+              />
+            )}
 
-          {settings.face === 'neon-cyber' && (
-            <NeonCyber
-              time={currentTime}
-              color={effectiveColor}
-              typography={activeTypography}
-              is24Hour={settings.is24Hour}
-              showDate={effectiveShowDate}
-              showSeconds={effectiveShowSeconds}
-              numeralSize={settings.numeralSize}
-              glowStrength={effectiveGlowStrength}
-              onCycleColor={cycleColor}
-            />
-          )}
+            {activeFace === 'neon-cyber' && (
+              <NeonCyber
+                time={currentTime}
+                color={effectiveColor}
+                typography={activeTypography}
+                is24Hour={settings.is24Hour}
+                showDate={effectiveShowDate}
+                showSeconds={effectiveShowSeconds}
+                numeralSize={settings.numeralSize}
+                numeralSpacing={settings.numeralSpacing}
+                clockAlignment={settings.clockAlignment}
+                shadowIntensity={settings.shadowIntensity}
+                glowStrength={effectiveGlowStrength}
+                onCycleColor={cycleColor}
+              />
+            )}
 
-          {settings.face === 'premium-editorial' && (
-            <PremiumEditorial
-              time={currentTime}
-              color={effectiveColor}
-              typography={activeTypography}
-              is24Hour={settings.is24Hour}
-              showDate={effectiveShowDate}
-              showSeconds={effectiveShowSeconds}
-              onCycleColor={cycleColor}
-            />
-          )}
+            {activeFace === 'premium-editorial' && (
+              <PremiumEditorial
+                time={currentTime}
+                color={effectiveColor}
+                typography={activeTypography}
+                is24Hour={settings.is24Hour}
+                showDate={effectiveShowDate}
+                showSeconds={effectiveShowSeconds}
+                numeralSize={settings.numeralSize}
+                numeralSpacing={settings.numeralSpacing}
+                clockAlignment={settings.clockAlignment}
+                shadowIntensity={settings.shadowIntensity}
+                onCycleColor={cycleColor}
+              />
+            )}
 
-          {settings.face === 'aurora-digital' && (
-            <AuroraDigital
-              time={currentTime}
-              color={effectiveColor}
-              typography={activeTypography}
-              is24Hour={settings.is24Hour}
-              showDate={effectiveShowDate}
-              showSeconds={effectiveShowSeconds}
-              numeralSize={settings.numeralSize}
-              glowStrength={effectiveGlowStrength}
-              onCycleColor={cycleColor}
-            />
-          )}
+            {activeFace === 'aurora-digital' && (
+              <AuroraDigital
+                time={currentTime}
+                color={effectiveColor}
+                typography={activeTypography}
+                is24Hour={settings.is24Hour}
+                showDate={effectiveShowDate}
+                showSeconds={effectiveShowSeconds}
+                numeralSize={settings.numeralSize}
+                numeralSpacing={settings.numeralSpacing}
+                clockAlignment={settings.clockAlignment}
+                shadowIntensity={settings.shadowIntensity}
+                glowStrength={effectiveGlowStrength}
+                onCycleColor={cycleColor}
+              />
+            )}
 
-          {settings.face === 'modern-world' && (
-            <ModernWorldClock
-              time={currentTime}
-              color={effectiveColor}
-              typography={activeTypography}
-              is24Hour={settings.is24Hour}
-              showDate={effectiveShowDate}
-              showSeconds={effectiveShowSeconds}
-              worldCity={settings.worldClockCity}
-              worldTimezone={settings.worldClockTimezone}
-              showSecondary={settings.showSecondaryClock}
-              onCycleColor={cycleColor}
-            />
-          )}
+            {activeFace === 'modern-world' && (
+              <ModernWorldClock
+                time={currentTime}
+                color={effectiveColor}
+                typography={activeTypography}
+                is24Hour={settings.is24Hour}
+                showDate={effectiveShowDate}
+                showSeconds={effectiveShowSeconds}
+                numeralSize={settings.numeralSize}
+                numeralSpacing={settings.numeralSpacing}
+                clockAlignment={settings.clockAlignment}
+                shadowIntensity={settings.shadowIntensity}
+                worldCity={settings.worldClockCity}
+                worldTimezone={settings.worldClockTimezone}
+                showSecondary={settings.showSecondaryClock}
+                onCycleColor={cycleColor}
+              />
+            )}
 
-          {settings.face === 'matrix-minimal' && (
-            <MatrixMinimal
-              time={currentTime}
-              color={effectiveColor}
-              typography={activeTypography}
-              is24Hour={settings.is24Hour}
-              showDate={effectiveShowDate}
-              showSeconds={effectiveShowSeconds}
-              onCycleColor={cycleColor}
-            />
-          )}
+            {activeFace === 'matrix-minimal' && (
+              <MatrixMinimal
+                time={currentTime}
+                color={effectiveColor}
+                typography={activeTypography}
+                is24Hour={settings.is24Hour}
+                showDate={effectiveShowDate}
+                showSeconds={effectiveShowSeconds}
+                numeralSize={settings.numeralSize}
+                numeralSpacing={settings.numeralSpacing}
+                clockAlignment={settings.clockAlignment}
+                shadowIntensity={settings.shadowIntensity}
+                onCycleColor={cycleColor}
+              />
+            )}
+          </div>
         </main>
       </div>
 
@@ -662,6 +735,7 @@ export const App: React.FC = () => {
         nextTransition={nextTransition}
         onToggleSleepManual={handleToggleSleepManual}
         currentTime={currentTime}
+        onShowToast={showToast}
       />
     </div>
   );

@@ -138,7 +138,7 @@ export const BACKGROUND_THEMES: BackgroundTheme[] = [
   {
     id: 'custom-color',
     name: 'Custom Solid Color',
-    description: 'Select your personal custom solid background hue',
+    description: 'Select your personal custom solid or gradient background hue',
     previewGradient: 'linear-gradient(135deg, #181822 0%, #0e0e14 100%)',
     isAnimated: false,
   },
@@ -259,8 +259,23 @@ export function getTheme(id: BackgroundThemeId): BackgroundTheme {
   return BACKGROUND_THEMES.find((t) => t.id === id) || BACKGROUND_THEMES[0];
 }
 
-export function getColor(id: ClockColorId): ClockColor {
-  return CLOCK_COLORS.find((c) => c.id === id) || CLOCK_COLORS[0];
+export function getColor(
+  id: ClockColorId,
+  customPrimary?: string,
+  customSecondary?: string
+): ClockColor {
+  const base = CLOCK_COLORS.find((c) => c.id === id) || CLOCK_COLORS[0];
+  if (customPrimary && /^#[0-9A-Fa-f]{6}$/.test(customPrimary)) {
+    return {
+      id: base.id,
+      name: 'Custom',
+      primary: customPrimary,
+      secondary: customSecondary && /^#[0-9A-Fa-f]{6}$/.test(customSecondary) ? customSecondary : base.secondary,
+      glow: `${customPrimary}80`,
+      dimGlow: `${customPrimary}33`,
+    };
+  }
+  return base;
 }
 
 export function getTypography(id: TypographyStyleId): TypographyStyle {

@@ -1,13 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   ClockSettings,
   AnimationSpeed,
   EffectIntensity,
   ParticleDensity,
   NumeralSize,
+  NumeralSpacing,
+  ClockAlignment,
   GlowStrength,
+  ShadowIntensity,
+  TransitionStyle,
   ClockColorId,
-  BackgroundThemeId,
   UserPreset,
   SleepScheduleMode,
 } from '../types';
@@ -18,11 +21,16 @@ import {
   CLOCK_FACES,
   WORLD_CITIES,
   getColor,
+  getTypography,
 } from '../utils/themes';
 import {
   loadUserPresets,
   saveUserPresets,
 } from '../utils/storage';
+import {
+  parseImportedPresets,
+  downloadPresetsAsJson,
+} from '../utils/presets';
 import {
   X,
   SunMedium,
@@ -48,6 +56,15 @@ import {
   Info,
   CalendarRange,
   Eye,
+  Download,
+  Upload,
+  Copy,
+  SlidersHorizontal,
+  Film,
+  MoveVertical,
+  AlignJustify,
+  FileText,
+  AlertTriangle,
 } from 'lucide-react';
 
 interface SettingsSheetProps {
@@ -61,9 +78,10 @@ interface SettingsSheetProps {
   nextTransition: Date | null;
   onToggleSleepManual: () => void;
   currentTime: Date;
+  onShowToast: (msg: string) => void;
 }
 
-type SettingsTab = 'faces' | 'wallpaper' | 'sleep' | 'presets' | 'display';
+type SettingsTab = 'studio' | 'wallpaper' | 'sleep' | 'presets' | 'dock';
 
 export const SettingsSheet: React.FC<SettingsSheetProps> = ({
   isOpen,
@@ -76,8 +94,9 @@ export const SettingsSheet: React.FC<SettingsSheetProps> = ({
   nextTransition,
   onToggleSleepManual,
   currentTime,
+  onShowToast,
 }) => {
-  const [activeTab, setActiveTab] = useState<SettingsTab>('faces');
+  const [activeTab, setActiveTab] = useState<SettingsTab>('studio');
 
   // Track online / offline status for PWA indicator
   const [isOnline, setIsOnline] = useState<boolean>(
@@ -91,7 +110,19 @@ export const SettingsSheet: React.FC<SettingsSheetProps> = ({
   const [editingPresetId, setEditingPresetId] = useState<string | null>(null);
   const [editingPresetName, setEditingPresetName] = useState('');
 
-  // Live preview toggle inside Sleep tab
+  // Delete preset confirmation state
+  const [presetToDelete, setPresetToDelete] = useState<UserPreset | null>(null);
+
+  // Import preset modal state
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [importJsonText, setImportJsonText] = useState('');
+  const [importError, setImportError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Live Studio Preview visibility toggle
+  const [showLiveStudioPreview, setShowLiveStudioPreview] = useState(true);
+
+  // Live Sleep Preview visibility toggle
   const [isPreviewingSleep, setIsPreviewingSleep] = useState(false);
 
   useEffect(() => {
@@ -124,7 +155,23 @@ export const SettingsSheet: React.FC<SettingsSheetProps> = ({
       ...(preset.particleDensity && { particleDensity: preset.particleDensity }),
       ...(preset.glowStrength && { glowStrength: preset.glowStrength }),
       ...(preset.numeralSize && { numeralSize: preset.numeralSize }),
+      ...(preset.numeralSpacing && { numeralSpacing: preset.numeralSpacing }),
+      ...(preset.clockAlignment && { clockAlignment: preset.clockAlignment }),
+      ...(preset.shadowIntensity && { shadowIntensity: preset.shadowIntensity }),
+      ...(preset.transitionStyle && { transitionStyle: preset.transitionStyle }),
+      ...(preset.showDate !== undefined && { showDate: preset.showDate }),
+      ...(preset.showSeconds !== undefined && { showSeconds: preset.showSeconds }),
+      ...(preset.customClockColor !== undefined && { customClockColor: preset.customClockColor }),
+      ...(preset.customClockColorSecondary !== undefined && {
+        customClockColorSecondary: preset.customClockColorSecondary,
+      }),
     });
+
+    if (isSleepModeActive) {
+      onShowToast(`Preset "${preset.name}" saved to daytime configuration (Sleep Mode active)`);
+    } else {
+      onShowToast(`Applied preset "${preset.name}"`);
+    }
   };
 
   // Save current configuration as new preset
@@ -132,13 +179,20 @@ export const SettingsSheet: React.FC<SettingsSheetProps> = ({
     const trimmed = newPresetName.trim();
     if (!trimmed) return;
 
+    if (presets.length >= 45) {
+      onShowToast('Preset limit reached (maximum 45 presets)');
+      return;
+    }
+
     const newPreset: UserPreset = {
-      id: `custom-${Date.now()}`,
+      id: `custom-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       name: trimmed,
       isBuiltIn: false,
       face: settings.face,
       bgTheme: settings.bgTheme,
       clockColor: settings.clockColor,
+      customClockColor: settings.customClockColor,
+      customClockColorSecondary: settings.customClockColorSecondary,
       fontStyle: settings.fontStyle,
       dimmer: settings.dimmer,
       bgSpeed: settings.bgSpeed,
@@ -146,6 +200,12 @@ export const SettingsSheet: React.FC<SettingsSheetProps> = ({
       particleDensity: settings.particleDensity,
       glowStrength: settings.glowStrength,
       numeralSize: settings.numeralSize,
+      numeralSpacing: settings.numeralSpacing,
+      clockAlignment: settings.clockAlignment,
+      shadowIntensity: settings.shadowIntensity,
+      transitionStyle: settings.transitionStyle,
+      showDate: settings.showDate,
+      showSeconds: settings.showSeconds,
     };
 
     const updated = [...presets, newPreset];
@@ -153,13 +213,38 @@ export const SettingsSheet: React.FC<SettingsSheetProps> = ({
     saveUserPresets(updated);
     setNewPresetName('');
     setIsCreatingPreset(false);
+    onShowToast(`Saved preset "${trimmed}"`);
   };
 
-  // Delete a custom preset
-  const handleDeletePreset = (id: string) => {
-    const updated = presets.filter((p) => p.id !== id);
+  // Duplicate an existing preset
+  const handleDuplicatePreset = (preset: UserPreset) => {
+    if (presets.length >= 45) {
+      onShowToast('Preset limit reached (maximum 45 presets)');
+      return;
+    }
+
+    const copyName = `${preset.name} (Copy)`.slice(0, 40);
+    const duplicated: UserPreset = {
+      ...preset,
+      id: `custom-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      name: copyName,
+      isBuiltIn: false,
+    };
+
+    const updated = [...presets, duplicated];
     setPresets(updated);
     saveUserPresets(updated);
+    onShowToast(`Duplicated as "${copyName}"`);
+  };
+
+  // Delete a custom preset after confirmation
+  const handleConfirmDeletePreset = () => {
+    if (!presetToDelete) return;
+    const updated = presets.filter((p) => p.id !== presetToDelete.id);
+    setPresets(updated);
+    saveUserPresets(updated);
+    onShowToast(`Deleted preset "${presetToDelete.name}"`);
+    setPresetToDelete(null);
   };
 
   // Rename a custom preset
@@ -172,6 +257,81 @@ export const SettingsSheet: React.FC<SettingsSheetProps> = ({
     saveUserPresets(updated);
     setEditingPresetId(null);
     setEditingPresetName('');
+    onShowToast('Preset renamed');
+  };
+
+  // Export a single preset
+  const handleExportSinglePreset = (preset: UserPreset) => {
+    downloadPresetsAsJson(preset, `clockdock-${preset.name.toLowerCase().replace(/\s+/g, '-')}.json`);
+    onShowToast(`Exported preset "${preset.name}"`);
+  };
+
+  // Copy preset JSON to clipboard
+  const handleCopyPresetJson = (preset: UserPreset) => {
+    const jsonStr = JSON.stringify(preset, null, 2);
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(jsonStr).then(() => {
+        onShowToast(`Copied "${preset.name}" JSON to clipboard`);
+      });
+    } else {
+      onShowToast('Clipboard unavailable on this browser');
+    }
+  };
+
+  // Export all presets
+  const handleExportAllPresets = () => {
+    downloadPresetsAsJson(presets, 'clockdock-all-presets.json');
+    onShowToast(`Exported all ${presets.length} presets`);
+  };
+
+  // Import JSON file or text
+  const handleProcessImportText = (text: string) => {
+    setImportError(null);
+    const result = parseImportedPresets(text);
+    if (!result.success) {
+      setImportError(result.error);
+      return;
+    }
+
+    // Add imported presets to collection, preventing duplicates by unique IDs
+    const updated = [...presets];
+    let addedCount = 0;
+    for (const imp of result.presets) {
+      if (updated.length < 45) {
+        updated.push(imp);
+        addedCount++;
+      }
+    }
+
+    setPresets(updated);
+    saveUserPresets(updated);
+    setIsImportModalOpen(false);
+    setImportJsonText('');
+    onShowToast(`Successfully imported ${addedCount} preset(s)`);
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 65536) {
+      setImportError('File size exceeds maximum limit of 64 KB');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const content = event.target?.result as string;
+      if (content) {
+        handleProcessImportText(content);
+      }
+    };
+    reader.onerror = () => {
+      setImportError('Failed to read the selected file.');
+    };
+    reader.readAsText(file);
+    // Reset file input so same file can be selected again if needed
+    e.target.value = '';
   };
 
   // Format transition time cleanly
@@ -182,10 +342,19 @@ export const SettingsSheet: React.FC<SettingsSheetProps> = ({
       })
     : null;
 
+  // Live Studio Preview calculations
+  const effectiveColor = getColor(
+    settings.clockColor,
+    settings.customClockColor,
+    settings.customClockColorSecondary
+  );
+  const activeTypography = getTypography(settings.fontStyle);
+  const liveHours = currentTime.getHours() % (settings.is24Hour ? 24 : 12) || (settings.is24Hour ? 0 : 12);
+  const liveMinutes = currentTime.getMinutes().toString().padStart(2, '0');
+  const liveSeconds = currentTime.getSeconds().toString().padStart(2, '0');
+
   // Sleep preview values
   const sleepTintColor = getColor(settings.sleepTint);
-  const previewHours = currentTime.getHours() % (settings.is24Hour ? 24 : 12) || (settings.is24Hour ? 0 : 12);
-  const previewMinutes = currentTime.getMinutes().toString().padStart(2, '0');
 
   return (
     <div
@@ -234,7 +403,7 @@ export const SettingsSheet: React.FC<SettingsSheetProps> = ({
               </div>
             </div>
             <p className="text-xs text-zinc-400 mt-1">
-              Adaptive Sleep Mode, Smart Dock controls & bedside screensaver
+              Clock Design Studio, visual presets, cinematic transitions & adaptive sleep mode
             </p>
           </div>
 
@@ -250,11 +419,11 @@ export const SettingsSheet: React.FC<SettingsSheetProps> = ({
         {/* Tab Navigation Navigation Pill Bar */}
         <div className="grid grid-cols-5 gap-1 p-1 bg-black/50 border border-white/10 rounded-2xl">
           {[
-            { id: 'faces', label: 'Clock', icon: Clock },
+            { id: 'studio', label: 'Design Studio', icon: SlidersHorizontal },
             { id: 'wallpaper', label: 'Wallpaper', icon: Sparkles },
             { id: 'sleep', label: 'Sleep Mode', icon: Moon },
             { id: 'presets', label: 'Presets', icon: Bookmark },
-            { id: 'display', label: 'Smart Dock', icon: Sliders },
+            { id: 'dock', label: 'Smart Dock', icon: Sliders },
           ].map((tab) => {
             const Icon = tab.icon;
             const isTabActive = activeTab === tab.id;
@@ -276,18 +445,117 @@ export const SettingsSheet: React.FC<SettingsSheetProps> = ({
         </div>
 
         {/* ============================================================ */}
-        {/* TAB 1: CLOCK FACES & STYLING (DAYTIME APPEARANCE) */}
+        {/* TAB 1: CLOCK DESIGN STUDIO (PHASE 2) */}
         {/* ============================================================ */}
-        {activeTab === 'faces' && (
+        {activeTab === 'studio' && (
           <div className="flex flex-col gap-5 animate-fadeIn">
-            {/* Clock Face Grid */}
+            {/* Live Interactive Miniature Preview Card */}
+            <div className="p-4 rounded-2xl bg-zinc-900/60 border border-white/15 flex flex-col gap-2.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-wider text-zinc-300 flex items-center gap-1.5">
+                  <Eye className="w-3.5 h-3.5 text-sky-400" />
+                  <span>Live Studio Preview</span>
+                </span>
+
+                <button
+                  onClick={() => setShowLiveStudioPreview((p) => !p)}
+                  className="text-[11px] text-zinc-400 hover:text-white underline font-medium"
+                >
+                  {showLiveStudioPreview ? 'Collapse Preview' : 'Expand Preview'}
+                </button>
+              </div>
+
+              {showLiveStudioPreview && (
+                <div
+                  className="relative w-full h-32 sm:h-36 rounded-2xl border border-white/10 flex flex-col items-center justify-center overflow-hidden transition-all duration-300"
+                  style={{
+                    backgroundColor: settings.bgTheme === 'oled-black' ? '#000000' : '#08080f',
+                    filter: `brightness(${settings.dimmer})`,
+                  }}
+                >
+                  <div className={`flex flex-col items-center ${activeTypography.className}`}>
+                    {/* Live preview complication */}
+                    {settings.showDate && (
+                      <span
+                        className="text-[10px] sm:text-xs font-bold tracking-widest uppercase mb-1"
+                        style={{ color: effectiveColor.secondary }}
+                      >
+                        {currentTime.toLocaleDateString(undefined, {
+                          weekday: 'short',
+                          month: 'short',
+                          day: 'numeric',
+                        })}
+                      </span>
+                    )}
+
+                    {/* Live preview digits */}
+                    <div
+                      className="flex items-center font-black text-4xl sm:text-5xl leading-none"
+                      style={{
+                        letterSpacing:
+                          settings.numeralSpacing === 'tight'
+                            ? '-0.07em'
+                            : settings.numeralSpacing === 'wide'
+                            ? '0.08em'
+                            : '-0.02em',
+                      }}
+                    >
+                      <span
+                        style={{
+                          color: effectiveColor.primary,
+                          textShadow:
+                            settings.glowStrength === 'vibrant'
+                              ? `0 0 25px ${effectiveColor.glow}`
+                              : settings.glowStrength === 'subtle'
+                              ? `0 0 14px ${effectiveColor.dimGlow}`
+                              : 'none',
+                        }}
+                      >
+                        {liveHours}
+                      </span>
+                      <span style={{ color: effectiveColor.secondary }} className="mx-1 animate-pulse">
+                        :
+                      </span>
+                      <span
+                        style={{
+                          color: effectiveColor.secondary,
+                          textShadow:
+                            settings.glowStrength === 'vibrant'
+                              ? `0 0 25px ${effectiveColor.glow}`
+                              : settings.glowStrength === 'subtle'
+                              ? `0 0 14px ${effectiveColor.dimGlow}`
+                              : 'none',
+                        }}
+                      >
+                        {liveMinutes}
+                      </span>
+
+                      {settings.showSeconds && (
+                        <span
+                          className="text-xs sm:text-sm font-mono ml-1.5 opacity-80"
+                          style={{ color: effectiveColor.primary }}
+                        >
+                          {liveSeconds}
+                        </span>
+                      )}
+                    </div>
+
+                    <span className="text-[9px] text-zinc-500 font-mono mt-1 capitalize">
+                      {settings.face.replace('-', ' ')} • {settings.fontStyle}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* A. Clock Face Collection */}
             <div className="flex flex-col gap-2.5">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold uppercase tracking-wider text-zinc-300 flex items-center gap-1.5">
                   <Clock className="w-3.5 h-3.5 text-zinc-300" />
                   <span>Clock Face ({CLOCK_FACES.length})</span>
                 </span>
-                <span className="text-[11px] text-zinc-500">Swipe screen anytime to switch</span>
+                <span className="text-[11px] text-zinc-500">Tap to switch face</span>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
@@ -336,83 +604,14 @@ export const SettingsSheet: React.FC<SettingsSheetProps> = ({
               </div>
             </div>
 
-            {/* World Clock Specific Settings */}
-            {settings.face === 'modern-world' && (
-              <div className="p-4 rounded-2xl bg-zinc-900/60 border border-sky-500/30 flex flex-col gap-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold uppercase tracking-wider text-sky-400 flex items-center gap-1.5">
-                    <Globe className="w-3.5 h-3.5" />
-                    <span>Secondary World Timezone</span>
-                  </span>
-                  <button
-                    onClick={() => onUpdate({ showSecondaryClock: !settings.showSecondaryClock })}
-                    className={`text-[11px] px-2.5 py-1 rounded-full font-bold border transition-colors ${
-                      settings.showSecondaryClock
-                        ? 'border-sky-400 bg-sky-500/20 text-sky-300'
-                        : 'border-zinc-700 bg-zinc-800 text-zinc-400'
-                    }`}
-                  >
-                    {settings.showSecondaryClock ? 'Secondary Visible' : 'Secondary Hidden'}
-                  </button>
-                </div>
-
-                <select
-                  value={settings.worldClockCity}
-                  onChange={(e) => {
-                    const selected = WORLD_CITIES.find((c) => c.city === e.target.value);
-                    if (selected) {
-                      onUpdate({
-                        worldClockCity: selected.city,
-                        worldClockTimezone: selected.timezone,
-                      });
-                    }
-                  }}
-                  className="w-full px-3 py-2.5 rounded-xl bg-black/60 border border-zinc-700 text-white text-xs font-semibold focus:outline-none focus:border-sky-400"
-                >
-                  {WORLD_CITIES.map((c) => (
-                    <option key={c.city} value={c.city}>
-                      {c.city} ({c.country}) — {c.timezone}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-
-            {/* Accent Color Selection */}
-            <div className="flex flex-col gap-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-zinc-400 flex items-center gap-1.5">
-                <Palette className="w-3.5 h-3.5" />
-                <span>Daytime Accent Color</span>
+            {/* B. Typography & Proportions */}
+            <div className="p-4 rounded-2xl bg-zinc-900/40 border border-zinc-800 flex flex-col gap-3.5">
+              <span className="text-xs font-bold uppercase tracking-wider text-zinc-300 flex items-center gap-1.5">
+                <Type className="w-3.5 h-3.5 text-zinc-400" />
+                <span>Typography & Proportions</span>
               </span>
-              <div className="flex items-center justify-between gap-2 p-3 rounded-2xl bg-zinc-900/50 border border-zinc-800">
-                {CLOCK_COLORS.map((c) => {
-                  const isSelected = settings.clockColor === c.id;
-                  return (
-                    <button
-                      key={c.id}
-                      onClick={() => onUpdate({ clockColor: c.id })}
-                      className={`relative rounded-full transition-all duration-200 ${
-                        isSelected
-                          ? 'w-7 h-7 sm:w-8 sm:h-8 ring-2 ring-white ring-offset-2 ring-offset-black scale-110 shadow-lg'
-                          : 'w-5 h-5 sm:w-6 sm:h-6 opacity-75 hover:opacity-100 hover:scale-110'
-                      }`}
-                      style={{
-                        backgroundColor: c.primary,
-                        boxShadow: isSelected ? `0 0 14px ${c.glow}` : 'none',
-                      }}
-                      title={c.name}
-                    />
-                  );
-                })}
-              </div>
-            </div>
 
-            {/* Typography Styles */}
-            <div className="flex flex-col gap-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-zinc-400 flex items-center gap-1.5">
-                <Type className="w-3.5 h-3.5" />
-                <span>Typography Style</span>
-              </span>
+              {/* Typography presets */}
               <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
                 {TYPOGRAPHY_STYLES.map((t) => {
                   const isSelected = settings.fontStyle === t.id;
@@ -440,98 +639,307 @@ export const SettingsSheet: React.FC<SettingsSheetProps> = ({
                   );
                 })}
               </div>
+
+              {/* Numeral Size, Numeral Spacing & Clock Alignment Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
+                {/* Numeral Size */}
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">
+                    Numeral Size
+                  </span>
+                  <div className="grid grid-cols-3 gap-1 bg-black/40 p-1 rounded-xl border border-zinc-800">
+                    {(['standard', 'large', 'xlarge'] as NumeralSize[]).map((sz) => (
+                      <button
+                        key={sz}
+                        onClick={() => onUpdate({ numeralSize: sz })}
+                        className={`py-1 text-[10px] font-bold capitalize rounded-lg transition-all ${
+                          settings.numeralSize === sz
+                            ? 'bg-white text-black shadow'
+                            : 'text-zinc-400 hover:text-white'
+                        }`}
+                      >
+                        {sz === 'xlarge' ? 'XL' : sz}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Numeral Spacing */}
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 flex items-center gap-1">
+                    <AlignJustify className="w-3 h-3" />
+                    <span>Numeral Spacing</span>
+                  </span>
+                  <div className="grid grid-cols-3 gap-1 bg-black/40 p-1 rounded-xl border border-zinc-800">
+                    {(['tight', 'normal', 'wide'] as NumeralSpacing[]).map((sp) => (
+                      <button
+                        key={sp}
+                        onClick={() => onUpdate({ numeralSpacing: sp })}
+                        className={`py-1 text-[10px] font-bold capitalize rounded-lg transition-all ${
+                          settings.numeralSpacing === sp
+                            ? 'bg-white text-black shadow'
+                            : 'text-zinc-400 hover:text-white'
+                        }`}
+                      >
+                        {sp}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Clock Alignment */}
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 flex items-center gap-1">
+                    <MoveVertical className="w-3 h-3" />
+                    <span>Clock Alignment</span>
+                  </span>
+                  <div className="grid grid-cols-3 gap-1 bg-black/40 p-1 rounded-xl border border-zinc-800">
+                    {(['top', 'center', 'bottom'] as ClockAlignment[]).map((al) => (
+                      <button
+                        key={al}
+                        onClick={() => onUpdate({ clockAlignment: al })}
+                        className={`py-1 text-[10px] font-bold capitalize rounded-lg transition-all ${
+                          settings.clockAlignment === al
+                            ? 'bg-white text-black shadow'
+                            : 'text-zinc-400 hover:text-white'
+                        }`}
+                      >
+                        {al}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
             </div>
 
-            {/* Numeral Size & Glow Strength */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {/* Numeral Size */}
-              <div className="flex flex-col gap-1.5 p-3 rounded-2xl bg-zinc-900/50 border border-zinc-800">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">
-                  Numeral Size
-                </span>
-                <div className="grid grid-cols-3 gap-1 bg-black/40 p-1 rounded-xl border border-zinc-800">
-                  {(['standard', 'large', 'xlarge'] as NumeralSize[]).map((sz) => (
+            {/* C. Colors, Glow & Shadows */}
+            <div className="p-4 rounded-2xl bg-zinc-900/40 border border-zinc-800 flex flex-col gap-3.5">
+              <span className="text-xs font-bold uppercase tracking-wider text-zinc-300 flex items-center gap-1.5">
+                <Palette className="w-3.5 h-3.5 text-zinc-400" />
+                <span>Colors & Lighting</span>
+              </span>
+
+              {/* Curated Color Swatches */}
+              <div className="flex items-center justify-between gap-2 p-3 rounded-2xl bg-black/40 border border-zinc-800">
+                {CLOCK_COLORS.map((c) => {
+                  const isSelected = settings.clockColor === c.id && !settings.customClockColor;
+                  return (
                     <button
-                      key={sz}
-                      onClick={() => onUpdate({ numeralSize: sz })}
-                      className={`py-1.5 text-[11px] font-bold capitalize rounded-lg transition-all ${
-                        settings.numeralSize === sz
+                      key={c.id}
+                      onClick={() => onUpdate({ clockColor: c.id, customClockColor: '' })}
+                      className={`relative rounded-full transition-all duration-200 ${
+                        isSelected
+                          ? 'w-7 h-7 sm:w-8 sm:h-8 ring-2 ring-white ring-offset-2 ring-offset-black scale-110 shadow-lg'
+                          : 'w-5 h-5 sm:w-6 sm:h-6 opacity-75 hover:opacity-100 hover:scale-110'
+                      }`}
+                      style={{
+                        backgroundColor: c.primary,
+                        boxShadow: isSelected ? `0 0 14px ${c.glow}` : 'none',
+                      }}
+                      title={c.name}
+                    />
+                  );
+                })}
+              </div>
+
+              {/* Custom Primary & Secondary Hex Color Pickers */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                <div className="flex items-center justify-between p-2.5 rounded-xl bg-black/40 border border-zinc-800">
+                  <div className="flex items-center gap-2">
+                    <label className="text-[11px] text-zinc-300 font-semibold">Custom Primary:</label>
+                    <input
+                      type="color"
+                      value={settings.customClockColor || effectiveColor.primary}
+                      onChange={(e) => onUpdate({ customClockColor: e.target.value })}
+                      className="w-7 h-7 rounded-lg cursor-pointer bg-transparent border-0"
+                    />
+                  </div>
+                  {settings.customClockColor && (
+                    <button
+                      onClick={() => onUpdate({ customClockColor: '' })}
+                      className="text-[10px] text-zinc-500 hover:text-white underline"
+                    >
+                      Reset
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-between p-2.5 rounded-xl bg-black/40 border border-zinc-800">
+                  <div className="flex items-center gap-2">
+                    <label className="text-[11px] text-zinc-300 font-semibold">Custom Secondary:</label>
+                    <input
+                      type="color"
+                      value={settings.customClockColorSecondary || effectiveColor.secondary}
+                      onChange={(e) => onUpdate({ customClockColorSecondary: e.target.value })}
+                      className="w-7 h-7 rounded-lg cursor-pointer bg-transparent border-0"
+                    />
+                  </div>
+                  {settings.customClockColorSecondary && (
+                    <button
+                      onClick={() => onUpdate({ customClockColorSecondary: '' })}
+                      className="text-[10px] text-zinc-500 hover:text-white underline"
+                    >
+                      Reset
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Glow Intensity & Shadow Depth Controls */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                {/* Glow Intensity */}
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">
+                    Glow Intensity
+                  </span>
+                  <div className="grid grid-cols-3 gap-1 bg-black/40 p-1 rounded-xl border border-zinc-800">
+                    {(['off', 'subtle', 'vibrant'] as GlowStrength[]).map((glow) => (
+                      <button
+                        key={glow}
+                        onClick={() => onUpdate({ glowStrength: glow })}
+                        className={`py-1 text-[10px] font-bold capitalize rounded-lg transition-all ${
+                          settings.glowStrength === glow
+                            ? 'bg-white text-black shadow'
+                            : 'text-zinc-400 hover:text-white'
+                        }`}
+                      >
+                        {glow}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Shadow Intensity */}
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">
+                    Shadow Depth
+                  </span>
+                  <div className="grid grid-cols-3 gap-1 bg-black/40 p-1 rounded-xl border border-zinc-800">
+                    {(['none', 'soft', 'deep'] as ShadowIntensity[]).map((sh) => (
+                      <button
+                        key={sh}
+                        onClick={() => onUpdate({ shadowIntensity: sh })}
+                        className={`py-1 text-[10px] font-bold capitalize rounded-lg transition-all ${
+                          settings.shadowIntensity === sh
+                            ? 'bg-white text-black shadow'
+                            : 'text-zinc-400 hover:text-white'
+                        }`}
+                      >
+                        {sh}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* D. Cinematic Transitions & Complications */}
+            <div className="p-4 rounded-2xl bg-zinc-900/40 border border-zinc-800 flex flex-col gap-3.5">
+              <span className="text-xs font-bold uppercase tracking-wider text-zinc-300 flex items-center gap-1.5">
+                <Film className="w-3.5 h-3.5 text-zinc-400" />
+                <span>Cinematic Transitions & Complications</span>
+              </span>
+
+              {/* Transition Style Selector */}
+              <div className="flex flex-col gap-1.5">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">
+                  Clock Face Transition Style
+                </span>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 bg-black/40 p-1.5 rounded-xl border border-zinc-800">
+                  {[
+                    { id: 'smooth', label: 'Smooth Fade' },
+                    { id: 'slide', label: 'Cinematic Slide' },
+                    { id: 'scale', label: 'Soft Scale' },
+                    { id: 'minimal', label: 'Minimal / Instant' },
+                  ].map((tr) => (
+                    <button
+                      key={tr.id}
+                      onClick={() => onUpdate({ transitionStyle: tr.id as TransitionStyle })}
+                      className={`py-1.5 px-2 text-[11px] font-bold rounded-lg transition-all ${
+                        settings.transitionStyle === tr.id
                           ? 'bg-white text-black shadow'
                           : 'text-zinc-400 hover:text-white'
                       }`}
                     >
-                      {sz === 'xlarge' ? 'X-Large' : sz}
+                      {tr.label}
                     </button>
                   ))}
                 </div>
               </div>
 
-              {/* Glow Strength */}
-              <div className="flex flex-col gap-1.5 p-3 rounded-2xl bg-zinc-900/50 border border-zinc-800">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">
-                  Clock Glow Strength
-                </span>
-                <div className="grid grid-cols-3 gap-1 bg-black/40 p-1 rounded-xl border border-zinc-800">
-                  {(['off', 'subtle', 'vibrant'] as GlowStrength[]).map((glow) => (
-                    <button
-                      key={glow}
-                      onClick={() => onUpdate({ glowStrength: glow })}
-                      className={`py-1.5 text-[11px] font-bold capitalize rounded-lg transition-all ${
-                        settings.glowStrength === glow
-                          ? 'bg-white text-black shadow'
-                          : 'text-zinc-400 hover:text-white'
-                      }`}
-                    >
-                      {glow}
-                    </button>
-                  ))}
-                </div>
+              {/* Complications: 12/24H, Date, Seconds */}
+              <div className="grid grid-cols-3 gap-2 pt-1">
+                <button
+                  onClick={() => onUpdate({ is24Hour: !settings.is24Hour })}
+                  className={`p-3 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all ${
+                    settings.is24Hour
+                      ? 'border-white bg-white/10 text-white'
+                      : 'border-zinc-800 bg-zinc-900/40 text-zinc-400 hover:text-white'
+                  }`}
+                >
+                  <span className="text-xs font-bold font-mono">
+                    {settings.is24Hour ? '24-Hour' : '12-Hour'}
+                  </span>
+                  <span className="text-[10px] text-zinc-500">Format</span>
+                </button>
+
+                <button
+                  onClick={() => onUpdate({ showDate: !settings.showDate })}
+                  className={`p-3 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all ${
+                    settings.showDate
+                      ? 'border-white bg-white/10 text-white'
+                      : 'border-zinc-800 bg-zinc-900/40 text-zinc-400 hover:text-white'
+                  }`}
+                >
+                  <Calendar className="w-3.5 h-3.5" />
+                  <span className="text-[10px] font-bold">
+                    {settings.showDate ? 'Date: Visible' : 'Date: Hidden'}
+                  </span>
+                </button>
+
+                <button
+                  onClick={() => onUpdate({ showSeconds: !settings.showSeconds })}
+                  className={`p-3 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all ${
+                    settings.showSeconds
+                      ? 'border-white bg-white/10 text-white'
+                      : 'border-zinc-800 bg-zinc-900/40 text-zinc-400 hover:text-white'
+                  }`}
+                >
+                  <Clock className="w-3.5 h-3.5" />
+                  <span className="text-[10px] font-bold">
+                    {settings.showSeconds ? 'Seconds: Visible' : 'Seconds: Hidden'}
+                  </span>
+                </button>
               </div>
-            </div>
 
-            {/* Display Toggles: 12/24H, Date, Seconds */}
-            <div className="grid grid-cols-3 gap-2">
-              <button
-                onClick={() => onUpdate({ is24Hour: !settings.is24Hour })}
-                className={`p-3 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all ${
-                  settings.is24Hour
-                    ? 'border-white bg-white/10 text-white'
-                    : 'border-zinc-800 bg-zinc-900/40 text-zinc-400 hover:text-white'
-                }`}
-              >
-                <span className="text-xs font-bold font-mono">
-                  {settings.is24Hour ? '24-Hour' : '12-Hour'}
-                </span>
-                <span className="text-[10px] text-zinc-500">Format</span>
-              </button>
-
-              <button
-                onClick={() => onUpdate({ showDate: !settings.showDate })}
-                className={`p-3 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all ${
-                  settings.showDate
-                    ? 'border-white bg-white/10 text-white'
-                    : 'border-zinc-800 bg-zinc-900/40 text-zinc-400 hover:text-white'
-                }`}
-              >
-                <Calendar className="w-3.5 h-3.5" />
-                <span className="text-[10px] font-bold">
-                  {settings.showDate ? 'Date: Visible' : 'Date: Hidden'}
-                </span>
-              </button>
-
-              <button
-                onClick={() => onUpdate({ showSeconds: !settings.showSeconds })}
-                className={`p-3 rounded-xl border flex flex-col items-center justify-center gap-1 transition-all ${
-                  settings.showSeconds
-                    ? 'border-white bg-white/10 text-white'
-                    : 'border-zinc-800 bg-zinc-900/40 text-zinc-400 hover:text-white'
-                }`}
-              >
-                <Clock className="w-3.5 h-3.5" />
-                <span className="text-[10px] font-bold">
-                  {settings.showSeconds ? 'Seconds: Visible' : 'Seconds: Hidden'}
-                </span>
-              </button>
+              {/* World Clock Companion (Shown when modern-world is active) */}
+              {settings.face === 'modern-world' && (
+                <div className="p-3.5 rounded-xl bg-black/40 border border-sky-500/30 flex flex-col gap-2 mt-1">
+                  <span className="text-[11px] font-bold text-sky-400 flex items-center gap-1.5">
+                    <Globe className="w-3.5 h-3.5" />
+                    <span>Secondary World City</span>
+                  </span>
+                  <select
+                    value={settings.worldClockCity}
+                    onChange={(e) => {
+                      const selected = WORLD_CITIES.find((c) => c.city === e.target.value);
+                      if (selected) {
+                        onUpdate({
+                          worldClockCity: selected.city,
+                          worldClockTimezone: selected.timezone,
+                        });
+                      }
+                    }}
+                    className="w-full px-3 py-2 rounded-xl bg-black/80 border border-zinc-700 text-white text-xs font-semibold focus:outline-none focus:border-sky-400"
+                  >
+                    {WORLD_CITIES.map((c) => (
+                      <option key={c.city} value={c.city}>
+                        {c.city} ({c.country}) — {c.timezone}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -970,9 +1378,9 @@ export const SettingsSheet: React.FC<SettingsSheetProps> = ({
                     NIGHT MODE LIVE PREVIEW
                   </span>
                   <div className="flex items-center gap-1 font-black text-4xl sm:text-5xl font-mono tracking-tight leading-none mt-1">
-                    <span style={{ color: sleepTintColor.primary }}>{previewHours}</span>
+                    <span style={{ color: sleepTintColor.primary }}>{liveHours}</span>
                     <span style={{ color: sleepTintColor.secondary }} className="animate-pulse">:</span>
-                    <span style={{ color: sleepTintColor.primary }}>{previewMinutes}</span>
+                    <span style={{ color: sleepTintColor.primary }}>{liveMinutes}</span>
                   </div>
                   {!settings.sleepMinimalDate && (
                     <span className="text-[10px] font-mono mt-1" style={{ color: sleepTintColor.secondary }}>
@@ -1092,41 +1500,66 @@ export const SettingsSheet: React.FC<SettingsSheetProps> = ({
         )}
 
         {/* ============================================================ */}
-        {/* TAB 4: SAVED PRESETS */}
+        {/* TAB 4: VISUAL PRESETS & SAFE IMPORT / EXPORT (PHASE 2) */}
         {/* ============================================================ */}
         {activeTab === 'presets' && (
           <div className="flex flex-col gap-4 animate-fadeIn">
-            <div className="flex items-center justify-between">
+            {/* Header bar with actions */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-1 border-b border-white/10">
               <div>
                 <span className="text-xs font-bold uppercase tracking-wider text-zinc-300 flex items-center gap-1.5">
                   <Bookmark className="w-3.5 h-3.5 text-rose-400" />
-                  <span>Favorite Presets</span>
+                  <span>Preset Library ({presets.length})</span>
                 </span>
                 <p className="text-[11px] text-zinc-500 mt-0.5">
-                  Switch full visual setups with 1 tap or save your current look
+                  Save, duplicate, export, and import complete visual clock themes
                 </p>
               </div>
 
-              {!isCreatingPreset && (
+              <div className="flex items-center gap-2">
+                {/* Export All button */}
                 <button
-                  onClick={() => setIsCreatingPreset(true)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-white/20 bg-white/10 text-white text-xs font-bold hover:bg-white/20 transition-all shadow"
+                  onClick={handleExportAllPresets}
+                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-white/10 bg-black/40 text-zinc-300 hover:text-white text-xs font-semibold hover:bg-white/10 transition-all"
+                  title="Export all presets as JSON"
                 >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Save Current</span>
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Export All</span>
                 </button>
-              )}
+
+                {/* Import button */}
+                <button
+                  onClick={() => setIsImportModalOpen(true)}
+                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-white/10 bg-black/40 text-zinc-300 hover:text-white text-xs font-semibold hover:bg-white/10 transition-all"
+                  title="Import preset JSON"
+                >
+                  <Upload className="w-3.5 h-3.5" />
+                  <span>Import</span>
+                </button>
+
+                {/* Save Current button */}
+                {!isCreatingPreset && (
+                  <button
+                    onClick={() => setIsCreatingPreset(true)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-white/20 bg-white/15 text-white text-xs font-bold hover:bg-white/25 transition-all shadow"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Save Current</span>
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Save New Preset Drawer */}
             {isCreatingPreset && (
-              <div className="p-3.5 rounded-2xl bg-zinc-900/70 border border-white/20 flex flex-col gap-2.5 animate-fadeIn">
-                <span className="text-xs font-bold text-white">Save Current Setup as Preset</span>
+              <div className="p-3.5 rounded-2xl bg-zinc-900/80 border border-white/20 flex flex-col gap-2.5 animate-fadeIn">
+                <span className="text-xs font-bold text-white">Save Current Design as Preset</span>
                 <div className="flex items-center gap-2">
                   <input
                     type="text"
-                    placeholder="e.g. My Bedside Setup"
+                    placeholder="e.g. Minimalist Midnight"
                     value={newPresetName}
+                    maxLength={40}
                     onChange={(e) => setNewPresetName(e.target.value)}
                     className="flex-1 px-3 py-2 rounded-xl bg-black/60 border border-zinc-700 text-white text-xs font-semibold focus:outline-none focus:border-white"
                     autoFocus
@@ -1150,7 +1583,7 @@ export const SettingsSheet: React.FC<SettingsSheetProps> = ({
               </div>
             )}
 
-            {/* Presets List */}
+            {/* Presets Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               {presets.map((p) => {
                 const isSelected =
@@ -1173,6 +1606,7 @@ export const SettingsSheet: React.FC<SettingsSheetProps> = ({
                           <input
                             type="text"
                             value={editingPresetName}
+                            maxLength={40}
                             onChange={(e) => setEditingPresetName(e.target.value)}
                             className="w-full px-2 py-1 rounded-lg bg-black border border-white/30 text-white text-xs font-semibold"
                             autoFocus
@@ -1195,8 +1629,40 @@ export const SettingsSheet: React.FC<SettingsSheetProps> = ({
                         </div>
                       )}
 
-                      {!p.isBuiltIn && editingPresetId !== p.id && (
-                        <div className="flex items-center gap-1">
+                      {/* Preset Action Icons */}
+                      <div className="flex items-center gap-0.5">
+                        {/* Duplicate */}
+                        <button
+                          onClick={() => handleDuplicatePreset(p)}
+                          className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-white/5 transition-colors"
+                          title="Duplicate Preset"
+                          aria-label={`Duplicate ${p.name}`}
+                        >
+                          <Copy className="w-3 h-3" />
+                        </button>
+
+                        {/* Export JSON */}
+                        <button
+                          onClick={() => handleExportSinglePreset(p)}
+                          className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-white/5 transition-colors"
+                          title="Download Preset JSON"
+                          aria-label={`Export ${p.name}`}
+                        >
+                          <Download className="w-3 h-3" />
+                        </button>
+
+                        {/* Copy JSON */}
+                        <button
+                          onClick={() => handleCopyPresetJson(p)}
+                          className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-white/5 transition-colors"
+                          title="Copy JSON to clipboard"
+                          aria-label={`Copy JSON for ${p.name}`}
+                        >
+                          <FileText className="w-3 h-3" />
+                        </button>
+
+                        {/* Rename (custom only) */}
+                        {!p.isBuiltIn && editingPresetId !== p.id && (
                           <button
                             onClick={() => {
                               setEditingPresetId(p.id);
@@ -1204,18 +1670,24 @@ export const SettingsSheet: React.FC<SettingsSheetProps> = ({
                             }}
                             className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-white/5 transition-colors"
                             title="Rename"
+                            aria-label={`Rename ${p.name}`}
                           >
                             <Edit2 className="w-3 h-3" />
                           </button>
+                        )}
+
+                        {/* Delete (custom only) */}
+                        {!p.isBuiltIn && (
                           <button
-                            onClick={() => handleDeletePreset(p.id)}
+                            onClick={() => setPresetToDelete(p)}
                             className="p-1.5 rounded-lg text-zinc-400 hover:text-red-400 hover:bg-red-500/10 transition-colors"
-                            title="Delete"
+                            title="Delete Preset"
+                            aria-label={`Delete ${p.name}`}
                           >
                             <Trash2 className="w-3 h-3" />
                           </button>
-                        </div>
-                      )}
+                        )}
+                      </div>
                     </div>
 
                     <div className="flex items-center justify-between">
@@ -1244,7 +1716,7 @@ export const SettingsSheet: React.FC<SettingsSheetProps> = ({
         {/* ============================================================ */}
         {/* TAB 5: SMART DOCK & DEVICE CONTROLS */}
         {/* ============================================================ */}
-        {activeTab === 'display' && (
+        {activeTab === 'dock' && (
           <div className="flex flex-col gap-4 animate-fadeIn">
             {/* Screen Dimmer */}
             <div className="p-4 rounded-2xl bg-zinc-900/50 border border-zinc-800 flex flex-col gap-2">
@@ -1354,6 +1826,141 @@ export const SettingsSheet: React.FC<SettingsSheetProps> = ({
           </button>
         </div>
       </div>
+
+      {/* ============================================================ */}
+      {/* CONFIRM DELETE MODAL */}
+      {/* ============================================================ */}
+      {presetToDelete && (
+        <div
+          onClick={() => setPresetToDelete(null)}
+          className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fadeIn"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-sm p-5 rounded-2xl bg-[#121218] border border-red-500/30 flex flex-col gap-3 shadow-2xl"
+          >
+            <div className="flex items-center gap-2 text-red-400 font-bold text-sm">
+              <AlertTriangle className="w-4 h-4" />
+              <span>Confirm Delete Preset</span>
+            </div>
+            <p className="text-xs text-zinc-300 leading-relaxed">
+              Are you sure you want to delete <strong className="text-white">"{presetToDelete.name}"</strong>? This action cannot be undone.
+            </p>
+            <div className="flex items-center gap-2 pt-2 border-t border-white/10">
+              <button
+                onClick={() => setPresetToDelete(null)}
+                className="flex-1 py-2 rounded-xl border border-zinc-700 bg-zinc-800 text-xs font-semibold text-zinc-300 hover:text-white"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmDeletePreset}
+                className="flex-1 py-2 rounded-xl bg-red-600 text-white text-xs font-bold hover:bg-red-500"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================ */}
+      {/* IMPORT PRESET MODAL */}
+      {/* ============================================================ */}
+      {isImportModalOpen && (
+        <div
+          onClick={() => {
+            setIsImportModalOpen(false);
+            setImportError(null);
+          }}
+          className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fadeIn"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-md p-5 rounded-3xl bg-[#121218] border border-white/20 flex flex-col gap-3.5 shadow-2xl"
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Upload className="w-4 h-4 text-sky-400" />
+                <h3 className="text-sm font-bold text-white">Import Presets</h3>
+              </div>
+              <button
+                onClick={() => {
+                  setIsImportModalOpen(false);
+                  setImportError(null);
+                }}
+                className="p-1 rounded-lg text-zinc-400 hover:text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-xs text-zinc-400 leading-relaxed">
+              Upload a valid <code className="text-zinc-200">.json</code> file or paste exported preset JSON below. Input will be validated against ClockDock schema.
+            </p>
+
+            {/* File Upload Trigger */}
+            <input
+              type="file"
+              ref={fileInputRef}
+              accept=".json,application/json"
+              onChange={handleFileUpload}
+              className="hidden"
+            />
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="w-full py-2.5 rounded-xl border border-dashed border-white/30 hover:border-white/60 bg-black/40 text-xs font-semibold text-zinc-300 hover:text-white flex items-center justify-center gap-2 transition-all"
+            >
+              <Upload className="w-3.5 h-3.5 text-sky-400" />
+              <span>Choose .JSON File from Device</span>
+            </button>
+
+            <div className="flex items-center gap-2 text-xs text-zinc-500">
+              <div className="flex-1 h-[1px] bg-zinc-800" />
+              <span>or paste JSON text</span>
+              <div className="flex-1 h-[1px] bg-zinc-800" />
+            </div>
+
+            {/* JSON Textarea */}
+            <textarea
+              rows={4}
+              value={importJsonText}
+              onChange={(e) => {
+                setImportJsonText(e.target.value);
+                setImportError(null);
+              }}
+              placeholder='Paste JSON here (e.g. {"name": "My Theme", "face": "standby-digital", ...})'
+              className="w-full p-2.5 rounded-xl bg-black/60 border border-zinc-700 text-white font-mono text-xs focus:outline-none focus:border-sky-400"
+            />
+
+            {/* Error Message */}
+            {importError && (
+              <div className="p-2.5 rounded-xl bg-red-500/15 border border-red-500/30 text-red-300 text-xs">
+                {importError}
+              </div>
+            )}
+
+            <div className="flex items-center gap-2 pt-2 border-t border-white/10">
+              <button
+                onClick={() => {
+                  setIsImportModalOpen(false);
+                  setImportError(null);
+                }}
+                className="flex-1 py-2 rounded-xl border border-zinc-700 bg-zinc-800 text-xs font-semibold text-zinc-300 hover:text-white"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleProcessImportText(importJsonText)}
+                disabled={!importJsonText.trim()}
+                className="flex-1 py-2 rounded-xl bg-sky-500 text-black text-xs font-bold hover:bg-sky-400 disabled:opacity-40 disabled:pointer-events-none"
+              >
+                Validate & Import
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

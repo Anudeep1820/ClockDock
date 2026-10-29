@@ -1,5 +1,13 @@
 import React from 'react';
-import { ClockColor, TypographyStyle, NumeralSize, GlowStrength } from '../../types';
+import {
+  ClockColor,
+  TypographyStyle,
+  NumeralSize,
+  NumeralSpacing,
+  ClockAlignment,
+  GlowStrength,
+  ShadowIntensity,
+} from '../../types';
 
 interface AmbientGlowProps {
   time: Date;
@@ -9,7 +17,10 @@ interface AmbientGlowProps {
   showDate: boolean;
   showSeconds: boolean;
   numeralSize?: NumeralSize;
+  numeralSpacing?: NumeralSpacing;
+  clockAlignment?: ClockAlignment;
   glowStrength?: GlowStrength;
+  shadowIntensity?: ShadowIntensity;
   onCycleColor?: () => void;
 }
 
@@ -21,7 +32,10 @@ export const AmbientGlow: React.FC<AmbientGlowProps> = ({
   showDate,
   showSeconds,
   numeralSize = 'large',
+  numeralSpacing = 'normal',
+  clockAlignment = 'center',
   glowStrength = 'subtle',
+  shadowIntensity = 'soft',
   onCycleColor,
 }) => {
   let hoursNum = time.getHours();
@@ -54,17 +68,38 @@ export const AmbientGlow: React.FC<AmbientGlowProps> = ({
       ? 'text-[32vw] sm:text-[28vw] md:text-[26vw]'
       : 'text-[27vw] sm:text-[24vw] md:text-[22vw]';
 
+  const letterSpacingStyle =
+    numeralSpacing === 'tight' ? '-0.07em' : numeralSpacing === 'wide' ? '0.04em' : '-0.03em';
+
+  const alignmentClass =
+    clockAlignment === 'top'
+      ? 'justify-start pt-14 sm:pt-20'
+      : clockAlignment === 'bottom'
+      ? 'justify-end pb-16 sm:pb-24'
+      : 'justify-center';
+
   const glowShadow =
     glowStrength === 'off'
       ? 'none'
       : glowStrength === 'vibrant'
-      ? `0 0 60px ${color.glow}, 0 0 100px ${color.glow}`
+      ? `0 0 65px ${color.glow}, 0 0 110px ${color.glow}`
       : `0 0 35px ${color.glow}, 0 0 70px ${color.dimGlow}`;
+
+  const baseShadow =
+    shadowIntensity === 'none'
+      ? 'none'
+      : shadowIntensity === 'deep'
+      ? '0 25px 50px rgba(0,0,0,0.95)'
+      : '0 15px 30px rgba(0,0,0,0.8)';
+
+  const combinedShadow = [glowShadow !== 'none' ? glowShadow : '', baseShadow !== 'none' ? baseShadow : '']
+    .filter(Boolean)
+    .join(', ') || 'none';
 
   return (
     <div
       onClick={onCycleColor}
-      className={`relative flex flex-col items-center justify-center w-full h-full p-6 select-none cursor-pointer overflow-hidden ${typography.className}`}
+      className={`relative flex flex-col items-center w-full h-full p-6 select-none cursor-pointer overflow-hidden transition-all duration-500 ${alignmentClass} ${typography.className}`}
     >
       {/* Ambient Breathing Background Radial Halo */}
       {glowStrength !== 'off' && (
@@ -78,7 +113,11 @@ export const AmbientGlow: React.FC<AmbientGlowProps> = ({
 
       {/* Atmospheric Day & Period Header */}
       {showDate && (
-        <div className="absolute top-6 sm:top-10 flex flex-col items-center gap-1 transition-all z-10">
+        <div
+          className={`flex flex-col items-center gap-1 transition-all z-10 mb-3 ${
+            clockAlignment === 'top' ? 'order-first mb-2' : clockAlignment === 'bottom' ? 'mb-4' : 'absolute top-6 sm:top-10'
+          }`}
+        >
           <div className="flex items-center gap-2">
             <span
               className="text-xs sm:text-sm font-semibold tracking-wider uppercase opacity-90"
@@ -102,12 +141,15 @@ export const AmbientGlow: React.FC<AmbientGlowProps> = ({
       )}
 
       {/* Atmospheric Luminous Clock Digits */}
-      <div className="relative z-10 flex items-center justify-center tracking-tighter leading-none select-none">
+      <div
+        className="relative z-10 flex items-center justify-center leading-none select-none"
+        style={{ letterSpacing: letterSpacingStyle }}
+      >
         <span
           className={`font-black ${fontSizeClass} transition-all duration-500`}
           style={{
             color: color.primary,
-            textShadow: glowShadow,
+            textShadow: combinedShadow,
           }}
         >
           {hours}
@@ -118,7 +160,7 @@ export const AmbientGlow: React.FC<AmbientGlowProps> = ({
           className={`font-black ${fontSizeClass} mx-[1.5vw] opacity-80 animate-pulse`}
           style={{
             color: color.secondary,
-            textShadow: glowShadow,
+            textShadow: combinedShadow,
           }}
         >
           :
@@ -128,7 +170,7 @@ export const AmbientGlow: React.FC<AmbientGlowProps> = ({
           className={`font-black ${fontSizeClass} transition-all duration-500`}
           style={{
             color: color.primary,
-            textShadow: glowShadow,
+            textShadow: combinedShadow,
           }}
         >
           {minutes}
@@ -148,7 +190,11 @@ export const AmbientGlow: React.FC<AmbientGlowProps> = ({
       </div>
 
       {/* Subtle Bottom Ambient Baseline */}
-      <div className="absolute bottom-6 sm:bottom-10 flex items-center gap-2 text-xs text-zinc-500 font-mono tracking-widest z-10">
+      <div
+        className={`flex items-center gap-2 text-xs text-zinc-500 font-mono tracking-widest z-10 ${
+          clockAlignment === 'bottom' ? 'order-last mt-3' : 'absolute bottom-6 sm:bottom-10'
+        }`}
+      >
         <span
           className="w-2 h-2 rounded-full animate-ping"
           style={{ backgroundColor: color.primary }}

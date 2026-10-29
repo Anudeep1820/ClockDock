@@ -1,5 +1,13 @@
 import React from 'react';
-import { ClockColor, TypographyStyle } from '../../types';
+import {
+  ClockColor,
+  TypographyStyle,
+  NumeralSize,
+  NumeralSpacing,
+  ClockAlignment,
+  GlowStrength,
+  ShadowIntensity,
+} from '../../types';
 import { Globe, ArrowRight } from 'lucide-react';
 
 interface ModernWorldClockProps {
@@ -12,6 +20,11 @@ interface ModernWorldClockProps {
   worldCity: string;
   worldTimezone: string;
   showSecondary: boolean;
+  numeralSize?: NumeralSize;
+  numeralSpacing?: NumeralSpacing;
+  clockAlignment?: ClockAlignment;
+  glowStrength?: GlowStrength;
+  shadowIntensity?: ShadowIntensity;
   onCycleColor?: () => void;
 }
 
@@ -25,6 +38,11 @@ export const ModernWorldClock: React.FC<ModernWorldClockProps> = ({
   worldCity,
   worldTimezone,
   showSecondary,
+  numeralSize = 'large',
+  numeralSpacing = 'normal',
+  clockAlignment = 'center',
+  glowStrength = 'subtle',
+  shadowIntensity = 'soft',
   onCycleColor,
 }) => {
   // Local time formatting
@@ -56,158 +74,172 @@ export const ModernWorldClock: React.FC<ModernWorldClockProps> = ({
     const parts = worldFormatter.formatToParts(time);
     const hourPart = parts.find((p) => p.type === 'hour')?.value || '12';
     const minPart = parts.find((p) => p.type === 'minute')?.value || '00';
-    const dayPart = parts.find((p) => p.type === 'weekday')?.value || '';
-    const dayPeriod = parts.find((p) => p.type === 'dayPeriod')?.value || '';
+    const dayPeriodPart = parts.find((p) => p.type === 'dayPeriod')?.value || '';
+    const weekdayPart = parts.find((p) => p.type === 'weekday')?.value || '';
 
     worldHours = hourPart;
     worldMinutes = minPart;
-    worldAmpm = dayPeriod;
-    worldDayStr = dayPart;
+    worldAmpm = dayPeriodPart;
+    worldDayStr = weekdayPart;
 
-    // Calculate approximate hour difference
-    const localUtcHours = time.getUTCHours() + time.getUTCMinutes() / 60;
-    // Get target zone hour
-    const targetDateStr = time.toLocaleString('en-US', { timeZone: worldTimezone });
-    const targetDate = new Date(targetDateStr);
-    const localNow = new Date();
-    const diffHours = Math.round((targetDate.getTime() - localNow.getTime()) / (1000 * 60 * 60));
-
-    timeDiffStr = diffHours === 0 ? 'Same time' : diffHours > 0 ? `+${diffHours} hrs` : `${diffHours} hrs`;
-  } catch (err) {
-    console.warn('World clock timezone calculation error:', err);
+    // Time difference calculation in hours
+    // Calculate remote UTC offset by formatting current time in remote timezone
+    const remoteIsoStr = time.toLocaleString('en-US', { timeZone: worldTimezone });
+    const remoteDate = new Date(remoteIsoStr);
+    const diffHours = Math.round((remoteDate.getTime() - time.getTime()) / (1000 * 60 * 60));
+    if (diffHours === 0) {
+      timeDiffStr = 'Same time';
+    } else if (diffHours > 0) {
+      timeDiffStr = `+${diffHours} HRS`;
+    } else {
+      timeDiffStr = `${diffHours} HRS`;
+    }
+  } catch {
+    worldHours = localHours;
+    worldMinutes = localMinutes;
+    timeDiffStr = 'Local';
   }
 
-  const weekday = time.toLocaleDateString(undefined, { weekday: 'long' });
-  const dateFormatted = time.toLocaleDateString(undefined, {
+  const localDayOfWeek = time.toLocaleDateString(undefined, { weekday: 'long' });
+  const localDateFormatted = time.toLocaleDateString(undefined, {
     month: 'short',
     day: 'numeric',
   });
 
+  const fontSizeClass =
+    numeralSize === 'standard'
+      ? 'text-6xl sm:text-7xl md:text-8xl'
+      : numeralSize === 'xlarge'
+      ? 'text-8xl sm:text-9xl md:text-[10.5rem]'
+      : 'text-7xl sm:text-8xl md:text-9xl';
+
+  const letterSpacingStyle =
+    numeralSpacing === 'tight' ? '-0.06em' : numeralSpacing === 'wide' ? '0.04em' : '-0.02em';
+
+  const alignmentClass =
+    clockAlignment === 'top'
+      ? 'justify-start pt-14 sm:pt-20'
+      : clockAlignment === 'bottom'
+      ? 'justify-end pb-16 sm:pb-24'
+      : 'justify-center';
+
+  const glowShadow =
+    glowStrength === 'off'
+      ? 'none'
+      : glowStrength === 'vibrant'
+      ? `0 0 45px ${color.glow}`
+      : `0 0 25px ${color.dimGlow}`;
+
+  const baseShadow =
+    shadowIntensity === 'none'
+      ? 'none'
+      : shadowIntensity === 'deep'
+      ? '0 20px 40px rgba(0,0,0,0.9)'
+      : '0 10px 20px rgba(0,0,0,0.7)';
+
+  const combinedShadow = [glowShadow !== 'none' ? glowShadow : '', baseShadow !== 'none' ? baseShadow : '']
+    .filter(Boolean)
+    .join(', ') || 'none';
+
   return (
     <div
       onClick={onCycleColor}
-      className={`relative flex flex-col items-center justify-center w-full h-full select-none cursor-pointer p-4 sm:p-6 transition-all duration-500 ${typography.className}`}
+      className={`relative flex flex-col items-center w-full h-full p-4 sm:p-6 select-none cursor-pointer transition-all duration-500 ${alignmentClass} ${typography.className}`}
     >
-      {/* Date Header Badge */}
-      {showDate && (
-        <div className="absolute top-6 sm:top-10 md:top-12 flex items-center gap-2">
-          <div
-            className="flex items-center gap-2 px-3.5 py-1.5 rounded-full border backdrop-blur-md shadow-lg"
-            style={{
-              borderColor: `${color.primary}30`,
-              backgroundColor: `${color.primary}10`,
-            }}
-          >
+      {/* Primary Local Clock Section */}
+      <div className="flex flex-col items-center justify-center">
+        {/* Local City & Date Header */}
+        {showDate && (
+          <div className="flex items-center gap-2 mb-3">
             <span
-              className="text-xs sm:text-sm font-semibold tracking-wider text-zinc-300"
-            >
-              Local Time • {weekday}, {dateFormatted}
-            </span>
-          </div>
-        </div>
-      )}
-
-      {/* PRIMARY LOCAL CLOCK */}
-      <div className="flex items-center justify-center leading-none tracking-tight">
-        <span
-          className="font-black text-[25vw] sm:text-[22vw] md:text-[19vw] drop-shadow-2xl transition-colors duration-500"
-          style={{
-            color: color.primary,
-            textShadow: `0 0 40px ${color.glow}, 0 20px 40px rgba(0,0,0,0.8)`,
-          }}
-        >
-          {localHours}
-        </span>
-
-        {/* Separator Dots */}
-        <div className="flex flex-col justify-center items-center gap-4 sm:gap-6 mx-2 sm:mx-4">
-          <span
-            className="w-3 h-3 sm:w-4 sm:h-4 rounded-full animate-pulse"
-            style={{
-              backgroundColor: color.primary,
-              boxShadow: `0 0 16px ${color.primary}`,
-            }}
-          />
-          <span
-            className="w-3 h-3 sm:w-4 sm:h-4 rounded-full animate-pulse"
-            style={{
-              backgroundColor: color.primary,
-              boxShadow: `0 0 16px ${color.primary}`,
-            }}
-          />
-        </div>
-
-        <span
-          className="font-black text-[25vw] sm:text-[22vw] md:text-[19vw] drop-shadow-2xl transition-colors duration-500"
-          style={{
-            color: color.secondary,
-            textShadow: `0 0 40px ${color.glow}, 0 20px 40px rgba(0,0,0,0.8)`,
-          }}
-        >
-          {localMinutes}
-        </span>
-
-        {!is24Hour && (
-          <span
-            className="text-xs sm:text-base md:text-xl font-bold ml-2 sm:ml-4 tracking-widest uppercase opacity-80"
-            style={{ color: color.primary }}
-          >
-            {localAmpm}
-          </span>
-        )}
-      </div>
-
-      {/* SECONDARY WORLD CLOCK CARD (Configurable World City) */}
-      {showSecondary && (
-        <div
-          className="mt-4 sm:mt-6 flex items-center gap-3 sm:gap-5 px-5 py-2.5 rounded-2xl border backdrop-blur-xl shadow-2xl transition-all"
-          style={{
-            borderColor: `${color.primary}30`,
-            backgroundColor: 'rgba(5, 8, 15, 0.7)',
-            boxShadow: `0 15px 35px rgba(0,0,0,0.7), 0 0 25px ${color.dimGlow}`,
-          }}
-        >
-          <div className="flex items-center gap-2">
-            <Globe className="w-4 h-4 text-sky-400" />
-            <span className="text-sm sm:text-base font-black tracking-tight text-white">
-              {worldCity}
-            </span>
-          </div>
-
-          <div className="h-4 w-[1px] bg-white/20" />
-
-          {/* Target Time */}
-          <div className="flex items-baseline gap-1.5 font-mono">
-            <span
-              className="text-lg sm:text-2xl font-black"
+              className="text-xs sm:text-sm font-bold tracking-wider uppercase"
               style={{ color: color.primary }}
             >
-              {worldHours}:{worldMinutes}
+              LOCAL • {localDayOfWeek}, {localDateFormatted}
             </span>
             {!is24Hour && (
-              <span className="text-[10px] sm:text-xs font-bold text-zinc-400 uppercase">
-                {worldAmpm}
+              <span className="text-[10px] sm:text-xs font-mono font-bold px-1.5 py-0.5 rounded bg-white/10 text-zinc-300">
+                {localAmpm}
               </span>
             )}
           </div>
+        )}
 
-          <div className="h-4 w-[1px] bg-white/20" />
-
-          {/* Time difference tag */}
-          <span className="text-[11px] sm:text-xs font-bold text-sky-300">
-            {timeDiffStr}
-          </span>
-        </div>
-      )}
-
-      {/* Seconds counter */}
-      {showSeconds && (
-        <div className="absolute bottom-4 sm:bottom-8 flex items-center gap-2">
+        {/* Primary Local Digits */}
+        <div
+          className="flex items-center justify-center leading-none"
+          style={{ letterSpacing: letterSpacingStyle }}
+        >
           <span
-            className="font-mono text-xs sm:text-sm font-bold tracking-wider text-zinc-400"
+            className={`font-black ${fontSizeClass} transition-all duration-500`}
+            style={{
+              color: color.primary,
+              textShadow: combinedShadow,
+            }}
           >
-            SEC :{localSeconds}
+            {localHours}
           </span>
+
+          <span
+            className={`font-black ${fontSizeClass} mx-2 sm:mx-3 opacity-75 animate-pulse`}
+            style={{
+              color: color.secondary,
+              textShadow: combinedShadow,
+            }}
+          >
+            :
+          </span>
+
+          <span
+            className={`font-black ${fontSizeClass} transition-all duration-500`}
+            style={{
+              color: color.secondary,
+              textShadow: combinedShadow,
+            }}
+          >
+            {localMinutes}
+          </span>
+
+          {/* Local Seconds Pill */}
+          {showSeconds && (
+            <div className="ml-3 sm:ml-4 self-end mb-2 sm:mb-4 px-2 py-1 rounded-xl bg-white/10 border border-white/15">
+              <span
+                className="font-mono text-base sm:text-xl font-bold"
+                style={{ color: color.primary }}
+              >
+                {localSeconds}
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Secondary Companion World City Clock Pill */}
+      {showSecondary && (
+        <div
+          className="mt-6 sm:mt-10 px-5 py-3 rounded-2xl border border-white/15 bg-black/60 backdrop-blur-xl flex items-center gap-4 shadow-xl transition-all hover:scale-105"
+        >
+          <div className="flex items-center gap-2">
+            <Globe className="w-4 h-4 text-sky-400" />
+            <div className="flex flex-col text-left">
+              <span className="text-xs font-bold text-white tracking-wide">{worldCity}</span>
+              <span className="text-[10px] text-zinc-400 font-mono">
+                {worldDayStr} • {timeDiffStr}
+              </span>
+            </div>
+          </div>
+
+          <ArrowRight className="w-3.5 h-3.5 text-zinc-600" />
+
+          {/* Secondary City Time */}
+          <div className="flex items-baseline gap-1 font-mono font-bold">
+            <span className="text-xl sm:text-2xl text-white">{worldHours}</span>
+            <span className="text-xl sm:text-2xl text-sky-400">:</span>
+            <span className="text-xl sm:text-2xl text-white">{worldMinutes}</span>
+            {!is24Hour && worldAmpm && (
+              <span className="text-[10px] text-zinc-400 ml-1">{worldAmpm}</span>
+            )}
+          </div>
         </div>
       )}
     </div>

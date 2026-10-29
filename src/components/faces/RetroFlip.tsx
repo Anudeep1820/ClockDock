@@ -1,14 +1,21 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ClockColor, TypographyStyle } from '../../types';
+import { ClockColor, TypographyStyle, ClockAlignment, ShadowIntensity, NumeralSpacing } from '../../types';
 
 interface FlipCardProps {
   value: string;
   label: string;
   color: ClockColor;
   typography: TypographyStyle;
+  shadowIntensity?: ShadowIntensity;
 }
 
-const FlipTile: React.FC<FlipCardProps> = ({ value, label, color, typography }) => {
+const FlipTile: React.FC<FlipCardProps> = ({
+  value,
+  label,
+  color,
+  typography,
+  shadowIntensity = 'soft',
+}) => {
   const [currentVal, setCurrentVal] = useState(value);
   const [prevVal, setPrevVal] = useState(value);
   const [isFlipping, setIsFlipping] = useState(false);
@@ -28,6 +35,13 @@ const FlipTile: React.FC<FlipCardProps> = ({ value, label, color, typography }) 
     }
   }, [value]);
 
+  const cardShadow =
+    shadowIntensity === 'none'
+      ? 'none'
+      : shadowIntensity === 'deep'
+      ? `0 30px 60px -10px rgba(0,0,0,0.95), 0 0 35px ${color.dimGlow}, inset 0 1px 0 rgba(255,255,255,0.12)`
+      : `0 20px 40px -10px rgba(0,0,0,0.9), 0 0 25px ${color.dimGlow}, inset 0 1px 0 rgba(255,255,255,0.12)`;
+
   return (
     <div className="flex flex-col items-center">
       {/* 3D Mechanical Card Frame */}
@@ -37,7 +51,7 @@ const FlipTile: React.FC<FlipCardProps> = ({ value, label, color, typography }) 
           className="absolute inset-0 rounded-2xl sm:rounded-3xl border border-white/10 overflow-hidden flex flex-col"
           style={{
             backgroundColor: '#121216',
-            boxShadow: `0 20px 40px -10px rgba(0,0,0,0.9), 0 0 30px ${color.dimGlow}, inset 0 1px 0 rgba(255,255,255,0.12)`,
+            boxShadow: cardShadow,
           }}
         >
           {/* Top Half */}
@@ -98,8 +112,8 @@ const FlipTile: React.FC<FlipCardProps> = ({ value, label, color, typography }) 
 
       {/* Understated Card Label */}
       <span
-        className="mt-3 text-[10px] sm:text-xs font-bold uppercase tracking-widest"
-        style={{ color: `${color.secondary}80` }}
+        className="text-[10px] sm:text-xs font-mono font-bold tracking-widest uppercase mt-2.5 sm:mt-4 opacity-60"
+        style={{ color: color.secondary }}
       >
         {label}
       </span>
@@ -114,6 +128,9 @@ interface RetroFlipProps {
   is24Hour: boolean;
   showDate: boolean;
   showSeconds: boolean;
+  numeralSpacing?: NumeralSpacing;
+  clockAlignment?: ClockAlignment;
+  shadowIntensity?: ShadowIntensity;
   onCycleColor?: () => void;
 }
 
@@ -124,6 +141,9 @@ export const RetroFlip: React.FC<RetroFlipProps> = ({
   is24Hour,
   showDate,
   showSeconds,
+  numeralSpacing = 'normal',
+  clockAlignment = 'center',
+  shadowIntensity = 'soft',
   onCycleColor,
 }) => {
   let hoursNum = time.getHours();
@@ -138,30 +158,72 @@ export const RetroFlip: React.FC<RetroFlipProps> = ({
     weekday: 'long',
     month: 'long',
     day: 'numeric',
-  });
+  }).toUpperCase();
+
+  const alignmentClass =
+    clockAlignment === 'top'
+      ? 'justify-start pt-14 sm:pt-20'
+      : clockAlignment === 'bottom'
+      ? 'justify-end pb-16 sm:pb-24'
+      : 'justify-center';
+
+  const gapClass =
+    numeralSpacing === 'tight'
+      ? 'gap-2 sm:gap-4 md:gap-5'
+      : numeralSpacing === 'wide'
+      ? 'gap-5 sm:gap-8 md:gap-10'
+      : 'gap-3 sm:gap-6 md:gap-8';
 
   return (
     <div
       onClick={onCycleColor}
-      className="flex flex-col items-center justify-center w-full h-full p-4 sm:p-6 select-none cursor-pointer"
+      className={`relative flex flex-col items-center w-full h-full p-4 sm:p-6 select-none cursor-pointer transition-all duration-500 ${alignmentClass}`}
     >
-      {/* Flip Tiles Row */}
-      <div className="flex items-center gap-3 sm:gap-6 md:gap-8">
+      {/* Date Header Complication */}
+      {showDate && (
+        <div
+          className={`flex items-center gap-2 mb-3 ${
+            clockAlignment === 'top' ? 'order-first mb-3' : clockAlignment === 'bottom' ? 'mb-4' : 'absolute top-5 sm:top-8 md:top-12'
+          }`}
+        >
+          <div
+            className="px-4 py-1.5 rounded-full border border-white/10 bg-black/40 backdrop-blur-md shadow-lg"
+          >
+            <span
+              className="text-xs sm:text-sm font-mono font-bold tracking-widest"
+              style={{ color: color.primary }}
+            >
+              {fullDate}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* Flip Clock Tile Row */}
+      <div className={`flex items-center justify-center ${gapClass}`}>
         <FlipTile
           value={hours}
           label="Hours"
           color={color}
           typography={typography}
+          shadowIntensity={shadowIntensity}
         />
 
-        <div className="flex flex-col gap-3 pb-8">
-          <span
-            className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 rounded-full shadow-lg"
-            style={{ backgroundColor: color.primary }}
+        {/* Separator Colons */}
+        <div className="flex flex-col gap-3 sm:gap-4 justify-center items-center py-4">
+          <div
+            className="w-2.5 sm:w-3.5 h-2.5 sm:h-3.5 rounded-full shadow-lg"
+            style={{
+              backgroundColor: color.primary,
+              boxShadow: `0 0 15px ${color.glow}`,
+            }}
           />
-          <span
-            className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 rounded-full shadow-lg"
-            style={{ backgroundColor: color.primary }}
+          <div
+            className="w-2.5 sm:w-3.5 h-2.5 sm:h-3.5 rounded-full shadow-lg"
+            style={{
+              backgroundColor: color.primary,
+              boxShadow: `0 0 15px ${color.glow}`,
+            }}
           />
         </div>
 
@@ -170,41 +232,33 @@ export const RetroFlip: React.FC<RetroFlipProps> = ({
           label="Minutes"
           color={color}
           typography={typography}
+          shadowIntensity={shadowIntensity}
         />
 
+        {/* Optional Seconds Split-Flap Card */}
         {showSeconds && (
           <>
-            <div className="flex flex-col gap-3 pb-8">
-              <span
-                className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 rounded-full shadow-lg"
-                style={{ backgroundColor: color.primary }}
+            <div className="flex flex-col gap-3 sm:gap-4 justify-center items-center py-4">
+              <div
+                className="w-2 sm:w-2.5 h-2 sm:h-2.5 rounded-full opacity-60"
+                style={{ backgroundColor: color.secondary }}
               />
-              <span
-                className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 rounded-full shadow-lg"
-                style={{ backgroundColor: color.primary }}
+              <div
+                className="w-2 sm:w-2.5 h-2 sm:h-2.5 rounded-full opacity-60"
+                style={{ backgroundColor: color.secondary }}
               />
             </div>
+
             <FlipTile
               value={seconds}
               label="Seconds"
               color={color}
               typography={typography}
+              shadowIntensity={shadowIntensity}
             />
           </>
         )}
       </div>
-
-      {/* Date Complication */}
-      {showDate && (
-        <div className="mt-8 text-center">
-          <p
-            className={`text-xs sm:text-sm font-semibold tracking-widest uppercase ${typography.className}`}
-            style={{ color: `${color.secondary}90` }}
-          >
-            {fullDate}
-          </p>
-        </div>
-      )}
     </div>
   );
 };

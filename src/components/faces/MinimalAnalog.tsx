@@ -1,5 +1,5 @@
 import React from 'react';
-import { ClockColor, TypographyStyle, GlowStrength } from '../../types';
+import { ClockColor, TypographyStyle, GlowStrength, ClockAlignment, ShadowIntensity } from '../../types';
 
 interface MinimalAnalogProps {
   time: Date;
@@ -8,6 +8,8 @@ interface MinimalAnalogProps {
   showDate: boolean;
   showSeconds: boolean;
   glowStrength?: GlowStrength;
+  clockAlignment?: ClockAlignment;
+  shadowIntensity?: ShadowIntensity;
   onCycleColor?: () => void;
 }
 
@@ -18,6 +20,8 @@ export const MinimalAnalog: React.FC<MinimalAnalogProps> = ({
   showDate,
   showSeconds,
   glowStrength = 'subtle',
+  clockAlignment = 'center',
+  shadowIntensity = 'soft',
   onCycleColor,
 }) => {
   // Sub-second precision for smooth sweeping second hand
@@ -41,17 +45,31 @@ export const MinimalAnalog: React.FC<MinimalAnalogProps> = ({
       ? `0 0 35px ${color.glow}`
       : `0 0 18px ${color.dimGlow}`;
 
+  const caseShadow =
+    shadowIntensity === 'none'
+      ? 'none'
+      : shadowIntensity === 'deep'
+      ? `0 35px 90px -15px rgba(0,0,0,0.98), 0 0 50px ${color.dimGlow}, inset 0 1px 2px rgba(255,255,255,0.2)`
+      : `0 25px 70px -15px rgba(0,0,0,0.9), 0 0 35px ${color.dimGlow}, inset 0 1px 2px rgba(255,255,255,0.2)`;
+
+  const alignmentClass =
+    clockAlignment === 'top'
+      ? 'justify-start pt-14 sm:pt-20'
+      : clockAlignment === 'bottom'
+      ? 'justify-end pb-16 sm:pb-24'
+      : 'justify-center';
+
   return (
     <div
       onClick={onCycleColor}
-      className={`relative flex flex-col items-center justify-center w-full h-full p-4 sm:p-6 select-none cursor-pointer ${typography.className}`}
+      className={`relative flex flex-col items-center w-full h-full p-4 sm:p-6 select-none cursor-pointer transition-all duration-500 ${alignmentClass} ${typography.className}`}
     >
       {/* Outer Luxury Chronometer Case & Bezel */}
       <div
         className="relative w-[78vw] h-[78vw] max-w-[340px] max-h-[340px] sm:max-w-[430px] sm:max-h-[430px] md:max-w-[490px] md:max-h-[490px] rounded-full flex items-center justify-center transition-all duration-500 shadow-2xl p-2.5 sm:p-3.5"
         style={{
           background: 'linear-gradient(145deg, #23232b 0%, #101014 50%, #08080a 100%)',
-          boxShadow: `0 30px 80px -15px rgba(0,0,0,0.95), 0 0 50px ${color.dimGlow}, inset 0 1px 2px rgba(255,255,255,0.2), inset 0 -1px 2px rgba(0,0,0,0.8)`,
+          boxShadow: caseShadow,
           border: '1.5px solid rgba(255,255,255,0.08)',
         }}
       >

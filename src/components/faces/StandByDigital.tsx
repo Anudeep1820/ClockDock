@@ -1,5 +1,13 @@
 import React from 'react';
-import { ClockColor, TypographyStyle, NumeralSize, GlowStrength } from '../../types';
+import {
+  ClockColor,
+  TypographyStyle,
+  NumeralSize,
+  NumeralSpacing,
+  ClockAlignment,
+  GlowStrength,
+  ShadowIntensity,
+} from '../../types';
 
 interface StandByDigitalProps {
   time: Date;
@@ -9,7 +17,10 @@ interface StandByDigitalProps {
   showDate: boolean;
   showSeconds: boolean;
   numeralSize?: NumeralSize;
+  numeralSpacing?: NumeralSpacing;
+  clockAlignment?: ClockAlignment;
   glowStrength?: GlowStrength;
+  shadowIntensity?: ShadowIntensity;
   onCycleColor?: () => void;
 }
 
@@ -21,7 +32,10 @@ export const StandByDigital: React.FC<StandByDigitalProps> = ({
   showDate,
   showSeconds,
   numeralSize = 'large',
+  numeralSpacing = 'normal',
+  clockAlignment = 'center',
   glowStrength = 'subtle',
+  shadowIntensity = 'soft',
   onCycleColor,
 }) => {
   let hoursNum = time.getHours();
@@ -46,21 +60,50 @@ export const StandByDigital: React.FC<StandByDigitalProps> = ({
       ? 'text-[32vw] sm:text-[28vw] md:text-[26vw]'
       : 'text-[27vw] sm:text-[24vw] md:text-[22vw]';
 
+  const letterSpacingStyle =
+    numeralSpacing === 'tight'
+      ? '-0.08em'
+      : numeralSpacing === 'wide'
+      ? '0.04em'
+      : '-0.03em';
+
+  const alignmentClass =
+    clockAlignment === 'top'
+      ? 'justify-start pt-14 sm:pt-20'
+      : clockAlignment === 'bottom'
+      ? 'justify-end pb-16 sm:pb-24'
+      : 'justify-center';
+
   const glowShadow =
     glowStrength === 'off'
       ? 'none'
       : glowStrength === 'vibrant'
-      ? `0 0 65px ${color.glow}, 0 20px 40px rgba(0,0,0,0.9)`
-      : `0 0 40px ${color.glow}, 0 15px 30px rgba(0,0,0,0.8)`;
+      ? `0 0 65px ${color.glow}`
+      : `0 0 40px ${color.glow}`;
+
+  const baseShadow =
+    shadowIntensity === 'none'
+      ? 'none'
+      : shadowIntensity === 'deep'
+      ? '0 25px 50px rgba(0,0,0,0.95), 0 10px 20px rgba(0,0,0,0.8)'
+      : '0 15px 30px rgba(0,0,0,0.8)';
+
+  const combinedShadow = [glowShadow !== 'none' ? glowShadow : '', baseShadow !== 'none' ? baseShadow : '']
+    .filter(Boolean)
+    .join(', ') || 'none';
 
   return (
     <div
       onClick={onCycleColor}
-      className={`relative flex flex-col items-center justify-center w-full h-full select-none cursor-pointer p-4 sm:p-6 transition-all duration-500 ${typography.className}`}
+      className={`relative flex flex-col items-center w-full h-full select-none cursor-pointer p-4 sm:p-6 transition-all duration-500 ${alignmentClass} ${typography.className}`}
     >
       {/* Date Header Badge */}
       {showDate && (
-        <div className="absolute top-5 sm:top-8 md:top-12 flex items-center gap-2.5 transition-all">
+        <div
+          className={`flex items-center gap-2.5 transition-all mb-3 ${
+            clockAlignment === 'top' ? 'order-first mb-2' : clockAlignment === 'bottom' ? 'mb-4' : 'absolute top-5 sm:top-8 md:top-12'
+          }`}
+        >
           <div
             className="flex items-center gap-2 px-3.5 py-1.5 rounded-full border backdrop-blur-md shadow-lg"
             style={{
@@ -91,14 +134,17 @@ export const StandByDigital: React.FC<StandByDigitalProps> = ({
         </div>
       )}
 
-      {/* GIANT DUAL-TONE DIGITS (Readable from across bedroom) */}
-      <div className="flex items-center justify-center leading-none tracking-tighter">
+      {/* GIANT DUAL-TONE DIGITS */}
+      <div
+        className="flex items-center justify-center leading-none"
+        style={{ letterSpacing: letterSpacingStyle }}
+      >
         {/* Hours (Primary Accent) */}
         <span
-          className={`font-black ${fontSizeClass} drop-shadow-2xl transition-all duration-500`}
+          className={`font-black ${fontSizeClass} transition-all duration-500`}
           style={{
             color: color.primary,
-            textShadow: glowShadow,
+            textShadow: combinedShadow,
           }}
         >
           {hoursStr}
@@ -124,10 +170,10 @@ export const StandByDigital: React.FC<StandByDigitalProps> = ({
 
         {/* Minutes (Secondary Subtle Accent) */}
         <span
-          className={`font-black ${fontSizeClass} drop-shadow-2xl transition-all duration-500`}
+          className={`font-black ${fontSizeClass} transition-all duration-500`}
           style={{
             color: color.secondary,
-            textShadow: glowShadow,
+            textShadow: combinedShadow,
           }}
         >
           {minutesStr}

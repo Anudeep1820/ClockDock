@@ -41,7 +41,11 @@ export type AnimationSpeed = 'slow' | 'normal' | 'fast';
 export type EffectIntensity = 'low' | 'medium' | 'high';
 export type ParticleDensity = 'low' | 'medium' | 'high';
 export type NumeralSize = 'standard' | 'large' | 'xlarge';
+export type NumeralSpacing = 'tight' | 'normal' | 'wide';
+export type ClockAlignment = 'center' | 'top' | 'bottom';
 export type GlowStrength = 'off' | 'subtle' | 'vibrant';
+export type ShadowIntensity = 'none' | 'soft' | 'deep';
+export type TransitionStyle = 'smooth' | 'slide' | 'scale' | 'minimal';
 export type SleepScheduleMode = 'daily' | 'weekday_weekend';
 
 export interface BackgroundTheme {
@@ -89,6 +93,14 @@ export interface UserPreset {
   particleDensity?: ParticleDensity;
   glowStrength?: GlowStrength;
   numeralSize?: NumeralSize;
+  numeralSpacing?: NumeralSpacing;
+  clockAlignment?: ClockAlignment;
+  shadowIntensity?: ShadowIntensity;
+  showDate?: boolean;
+  showSeconds?: boolean;
+  customClockColor?: string;
+  customClockColorSecondary?: string;
+  transitionStyle?: TransitionStyle;
 }
 
 export interface SleepManualOverride {
@@ -97,9 +109,11 @@ export interface SleepManualOverride {
 }
 
 export interface ClockSettings {
-  // Daytime Clock Face & Appearance
+  // Daytime Clock Face & Appearance (Phase 2 Design Studio)
   face: ClockFaceId;
   clockColor: ClockColorId;
+  customClockColor: string;
+  customClockColorSecondary: string;
   fontStyle: TypographyStyleId;
   is24Hour: boolean;
   showDate: boolean;
@@ -107,7 +121,11 @@ export interface ClockSettings {
   dimmer: number; // 0.15 to 1.0
   forcedLandscape: boolean;
   numeralSize: NumeralSize;
+  numeralSpacing: NumeralSpacing;
+  clockAlignment: ClockAlignment;
   glowStrength: GlowStrength;
+  shadowIntensity: ShadowIntensity;
+  transitionStyle: TransitionStyle;
 
   // Background Studio
   bgTheme: BackgroundThemeId;
